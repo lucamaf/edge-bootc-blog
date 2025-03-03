@@ -1,0 +1,35 @@
+[customizations.installer.kickstart]
+contents = """
+lang en_US.UTF-8
+keyboard us
+timezone Europe/Rome
+network --bootproto=dhcp --onboot=true --activate
+
+rootpw --lock
+
+zerombr
+clearpart --all --initlabel
+part /boot/efi --fstype=efi --size=200
+part /boot --fstype=xfs --asprimary --size=800
+part swap --fstype=swap --recommended
+part pv.01 --grow
+volgroup rhel pv.01
+logvol / --vgname=rhel --fstype=xfs --percent=70 --name=root
+
+halt
+
+%post
+#Switch bootc to shared registry upstream
+mkdir -p /etc/containers/registries.conf.d/
+cat <<EOF > /etc/containers/registries.conf.d/gitea-registry.conf
+[[registry]]
+location = "osbuild.lmf.openshift.es:5000"
+insecure = true
+EOF
+bootc switch --mutate-in-place --transport registry osbuild.lmf.openshift.es:5000/gitea/microshift-4.18-bootc:latest
+%end
+
+%post
+systemctl mask bootc-fetch-apply-updates.timer
+%end
+"""

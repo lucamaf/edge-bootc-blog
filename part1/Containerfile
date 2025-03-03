@@ -1,0 +1,88 @@
+FROM registry.redhat.io/rhel9/rhel-bootc:9.4
+
+ARG USHIFT_VER=4.18
+RUN dnf config-manager \
+        --set-enabled rhocp-${USHIFT_VER}-for-rhel-9-$(uname -m)-rpms \
+        --set-enabled fast-datapath-for-rhel-9-$(uname -m)-rpms
+RUN dnf install -y firewalld microshift && \
+    systemctl enable microshift && \
+    dnf clean all
+
+# Create a default 'admin' user with the specified password.
+# Add it to the 'wheel' group to allow for running sudo commands.
+ARG USER_PASSWD
+RUN if [ -z "${USER_PASSWD}" ] ; then \
+        echo USER_PASSWD is a mandatory build argument && exit 1 ; \
+    fi
+RUN useradd -m -d /var/home/admin -G wheel admin && \
+    echo "admin:${USER_PASSWD}" | chpasswd
+
+# Mandatory firewall configuration
+RUN firewall-offline-cmd --zone=public --add-port=22/tcp && \
+    firewall-offline-cmd --zone=trusted --add-source=10.42.0.0/16 && \
+    firewall-offline-cmd --zone=trusted --add-source=169.254.169.1
+
+# Create a systemd unit to recursively make the root filesystem subtree
+# shared as required by OVN images
+RUN cat > /etc/systemd/system/microshift-make-rshared.service <<'EOF'
+[Unit]
+Description=Make root filesystem shared
+Before=microshift.service
+ConditionVirtualization=container
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/mount --make-rshared /
+[Install]
+WantedBy=multi-user.target
+EOF
+RUN systemctl enable microshift-make-rshared.service
+
+# add gitea network issue notify service
+# Network info script
+RUN cat <<EOF > /var/tmp/network-info.sh
+#!/bin/bash
+sleep 15
+conn_name=\$(nmcli -t -f NAME con show | head -n 1)
+device_name=\$(nmcli -t -f GENERAL.DEVICES con show "\$conn_name" | head -n 1 | cut -d: -f2)
+IP_ADDRESS=\$(nmcli -t -f IP4.ADDRESS con show "\$conn_name" | head -n 1 | cut -d: -f2 | cut -d/ -f1)
+MAC_ADDRESS=\$(nmcli -g GENERAL.HWADDR device show "\$device_name" | tr -d '\\')
+MAC_ADDRESS_FORMAT=\$(echo "\$MAC_ADDRESS" | tr -d ':')
+
+
+if [ -z "\$IP_ADDRESS" ] || [ -z "\$MAC_ADDRESS" ] ; then
+    echo "One or more required variables are empty. Script failed."
+    exit 1
+fi
+
+JSON="{ \
+\"body\":\"\$IP_ADDRESS\", \
+\"title\": \"YOUR-DEVICE-IP\" \
+}"
+
+/usr/bin/curl -k -H 'Content-Type: application/json' -u gitea:gitea --data "\$JSON" http://osbuild.lmf.openshift.es:5000/api/v1/repos/gitea/inventories/issues
+EOF
+
+RUN chmod +x  /var/tmp/network-info.sh
+
+RUN cat <<EOF > /etc/systemd/system/network-info.service
+[Unit]
+Description=Register Network Info onto Gitea
+After=network.target
+After=connect-wifi.service
+ConditionPathExists=!/var/tmp/net-info-registered
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'while true; do /var/tmp/network-info.sh && /usr/bin/touch /var/tmp/net-info-registered && break; done'
+
+[Install]
+WantedBy=default.target
+EOF
+
+RUN systemctl enable network-info.service
+
+# add cockpit interface
+RUN dnf -y install cockpit && dnf -y clean all && systemctl enable cockpit.socket
+# Mandatory firewall configuration
+RUN firewall-offline-cmd --zone=public --add-port=9090/tcp
+EXPOSE 9090
