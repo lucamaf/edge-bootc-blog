@@ -1,2 +1,5 @@
 FROM osbuild.lmf.openshift.es:5000/gitea/microshift-4.18-bootc:latest
-RUN dnf -y install cockpit-ws && dnf -y clean all
+# don't want to remove audit package
+RUN dnf -y remove  cockpit* --setopt=clean_requirements_on_remove=false
+COPY cockpit.container /usr/share/containers/systemd
+COPY pull-secret.json /etc/crio/openshift-pull-secret
