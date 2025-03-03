@@ -1,0 +1,2 @@
+FROM osbuild.lmf.openshift.es:5000/gitea/microshift-4.18-bootc:latest
+RUN dnf -y install cockpit-ws && dnf -y clean all
