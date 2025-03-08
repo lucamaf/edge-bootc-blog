@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tailwind-pos
+  name: tailwind-pos-deployment
+  namespace: pos-systems
+spec:
+  selector:
+    matchLabels:
+      app: tailwind-pos
+  template:
+    metadata:
+      labels:
+        app: tailwind-pos
+      name: tailwind-pos
+    spec:
+      containers:
+        image: quay.io/luferrar/tailwind-pos:latest
+        name: tailwind-pos
+        ports:
+        - containerPort: 80

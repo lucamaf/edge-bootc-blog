@@ -1,0 +1,15 @@
+FROM osbuild.lmf.openshift.es:5000/gitea/microshift-4.18-bootc:latest
+# don't want to remove audit package
+RUN dnf -y copr enable @redhat-et/flightctl; \
+	dnf -y install flightctl-agent; \
+	dnf -y clean all; \
+	systemctl enable flightctl-agent.service
+
+# Optional: to enable podman-compose application support uncomment below”
+RUN subscription-manager repos --enable codeready-builder-for-rhel-9-x86_64-rpms; \
+	dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm; \
+	dnf -y install podman-compose; \
+	dnf -y clean all; \
+	systemctl enable podman.service
+
+ADD config.yaml /etc/flightctl/config.yaml

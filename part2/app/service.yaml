@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: tailwind-pos
+  name: tailwind-pos-service
+  namespace: pos-systems
+spec:
+  ports:
+  - name: "web"
+    nodePort: 32080
+    port: 80
+    targetPort: 80
+  selector:
+    app: tailwind-pos
+  type: NodePort
