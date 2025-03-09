@@ -1,5 +1,4 @@
 apiServer:
-  advertiseAddress: 10.44.0.0
   auditLog:
     maxFileAge: 0
     maxFileSize: 200
