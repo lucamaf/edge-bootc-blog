@@ -8,6 +8,7 @@ apiServer:
   namedCertificates: null
   subjectAltNames:
   - localhost.localdomain
+  - 192.168.1.68
 debugging:
   logLevel: Normal
 dns:
