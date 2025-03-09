@@ -1,0 +1,60 @@
+apiServer:
+  advertiseAddress: 10.44.0.0
+  auditLog:
+    maxFileAge: 0
+    maxFileSize: 200
+    maxFiles: 10
+    profile: Default
+  namedCertificates: null
+  subjectAltNames:
+  - localhost.localdomain
+debugging:
+  logLevel: Normal
+dns:
+  baseDomain: example.com
+etcd:
+  memoryLimitMB: 0
+ingress:
+  defaultHTTPVersion: 1
+  forwardedHeaderPolicy: Append
+  httpCompression: {}
+  httpEmptyRequestsPolicy: Respond
+  listenAddress: null
+  logEmptyRequests: Log
+  ports:
+    http: 80
+    https: 443
+  routeAdmissionPolicy:
+    namespaceOwnership: InterNamespaceAllowed
+  status: Managed
+  tuningOptions:
+    clientFinTimeout: 1s
+    clientTimeout: 30s
+    headerBufferBytes: 32768
+    headerBufferMaxRewriteBytes: 8192
+    healthCheckInterval: 5s
+    maxConnections: 50000
+    serverFinTimeout: 1s
+    serverTimeout: 30s
+    threadCount: 4
+    tlsInspectDelay: 5s
+    tunnelTimeout: 1h0m0s
+kubelet: null
+manifests:
+  kustomizePaths:
+  - /usr/lib/microshift/manifests
+  - /usr/lib/microshift/manifests.d/*
+  - /etc/microshift/manifests
+  - /etc/microshift/manifests.d/*
+network:
+  clusterNetwork:
+  - 10.42.0.0/16
+  serviceNetwork:
+  - 10.43.0.0/16
+  serviceNodePortRange: 30000-32767
+node:
+  hostnameOverride: localhost.localdomain
+  nodeIP: 192.168.1.68
+  nodeIPv6: ""
+storage: {}
+
