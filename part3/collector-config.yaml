@@ -1,0 +1,46 @@
+# kubernetes/collector-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+data:
+  config.yaml: |
+    receivers:
+      hostmetrics:
+        collection_interval: 30s
+        scrapers:
+          cpu: {}
+          memory: {}
+          disk: {}
+          filesystem: {}
+          network: {}
+          process: {}
+    processors:
+      resource:
+        attributes:
+          - action: insert
+            key: cluster.name
+            value: ${CLUSTER_NAME}
+      resourcedetection:
+        detectors: [kubernetes]
+        timeout: 5s
+    exporters:
+      otlp:
+        endpoint: ${OTLP_ENDPOINT}
+        tls:
+          insecure: false
+          cert_file: /etc/certs/collector.crt
+          key_file: /etc/certs/collector.key
+        # Data sources: metrics
+      prometheusremotewrite:
+        endpoint: http://192.168.1.48:26544/api/v1/write
+        # When using the official Prometheus (running via Docker)
+        # endpoint: 'http://prometheus:9090/api/v1/write', add:
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        metrics:
+          receivers: [hostmetrics]
+          processors: [resource, resourcedetection]
+          exporters: [otlp, prometheusremotewrite]
