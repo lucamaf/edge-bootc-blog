@@ -54,7 +54,7 @@ network:
   serviceNodePortRange: 30000-32767
 node:
   hostnameOverride: localhost.localdomain
-  nodeIP: 192.168.1.68
+  nodeIP: 192.168.122.250
   nodeIPv6: ""
 storage: {}
 
