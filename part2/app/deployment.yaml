@@ -19,4 +19,4 @@ spec:
       - image: quay.io/luferrar/tailwind-pos:latest
         name: tailwind-pos
         ports:
-        - containerPort: 80
+        - containerPort: 8080
