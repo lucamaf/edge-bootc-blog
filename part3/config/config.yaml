@@ -7,11 +7,11 @@ apiServer:
   namedCertificates: null
   subjectAltNames:
   - localhost.localdomain
-  - 192.168.1.68
+  - 192.168.122.250
 debugging:
   logLevel: Normal
 dns:
-  baseDomain: example.com
+  baseDomain: demo.local
 etcd:
   memoryLimitMB: 0
 ingress:
