@@ -16,7 +16,6 @@ part pv.01 --grow
 volgroup rhel pv.01
 logvol / --vgname=rhel --fstype=xfs --percent=70 --name=root
 
-halt
 
 %post
 #Switch bootc to shared registry upstream
@@ -32,4 +31,6 @@ bootc switch --mutate-in-place --transport registry osbuild.lmf.openshift.es:500
 %post
 systemctl mask bootc-fetch-apply-updates.timer
 %end
+
+shutdown --eject
 """
