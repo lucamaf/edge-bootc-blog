@@ -43,7 +43,6 @@ nodes:
     hostPort: 8081
     protocol: TCP
   - containerPort: 9000 # ui
-    A
     hostPort: 9000
     protocol: TCP
 

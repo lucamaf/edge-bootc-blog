@@ -1,0 +1,69 @@
+receivers:
+  hostmetrics:
+    collection_interval: 10s
+    scrapers:
+      cpu:
+      load:
+      memory:
+      network:
+      paging:
+      processes:
+      process:
+        mute_process_name_error: true
+        mute_process_exe_error: true
+        mute_process_io_error: true
+        mute_process_user_error: true
+        mute_process_cgroup_error: true
+        metrics:
+          process.cpu.utilization:
+            enabled: true
+          process.memory.utilization:
+            enabled: true
+  hostmetrics/disk:
+    collection_interval: 1m
+    scrapers:
+      disk:
+      filesystem:
+
+  journald:
+    units:
+      - flightctl-agent.service
+    priority: info
+      
+exporters:
+  otlphttp:
+    endpoint: http://otlp-http-otel-route-opentelemetry.apps.my.lmf.openshift.es
+  debug:
+    verbosity: detailed
+
+processors:
+  batch: {}
+  # The prometheus OTLP ingestion does not add resource attributes by default
+  # See coo-prometheus.yaml how to enable ingestion of resource attributes
+  # See https://opentelemetry.io/docs/specs/semconv/resource/device/ which attributes are expected
+  # See https://opentelemetry.io/docs/specs/semconv/resource/host/ which attributes are expected
+  resource:
+    attributes:
+    - action: insert
+      key: host.id
+      value: "${DEVICE_ID}"
+  attributes:
+    - action: insert
+      key: host.id
+      value: "${DEVICE_ID}"
+  memory_limiter:
+    check_interval: 10s
+    limit_percentage: 5
+    spike_limit_percentage: 1
+
+service:
+  pipelines:
+    metrics:
+      receivers: [hostmetrics,hostmetrics/disk]
+      processors: [memory_limiter, resource, batch]
+      exporters: [debug, otlphttp]
+    logs:
+      receivers: [journald]
+      processors: [memory_limiter, resource, batch]
+      exporters: [debug, otlphttp]
+
