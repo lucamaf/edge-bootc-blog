@@ -1,3 +1,5 @@
 *.iso
 pull-secret.json
 *.key
+*.rpm
+*.tmp
