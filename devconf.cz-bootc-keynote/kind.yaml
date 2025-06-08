@@ -1,0 +1,48 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+kubeadmConfigPatches:
+- |
+  kind: ClusterConfiguration
+  apiServer:
+    extraArgs:
+      "service-node-port-range": "3000-32767"
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 30000
+    hostPort: 30000
+  - containerPort: 30001
+    hostPort: 30001
+  - containerPort: 30002
+    hostPort: 30002
+  - containerPort: 30003
+    hostPort: 30003
+  - containerPort: 30004
+    hostPort: 30004
+  - containerPort: 30005
+    hostPort: 30005
+  - containerPort: 31000
+    hostPort: 31000
+  - containerPort: 32000
+    hostPort: 32000
+  - containerPort: 32080
+    hostPort: 32080
+  - containerPort: 31080
+    hostPort: 31080
+  - containerPort: 30080
+    hostPort: 30080
+  - containerPort: 3443 # flightctl API
+    hostPort: 3443
+    protocol: TCP
+  - containerPort: 7443 # flightctl agent endpoint API
+    hostPort: 7443
+    protocol: TCP
+  - containerPort: 7444 # flightctl agent grpc endpoint API
+    hostPort: 7444
+  - containerPort: 8081 # keycloak
+    hostPort: 8081
+    protocol: TCP
+  - containerPort: 9000 # ui
+    hostPort: 9000
+    protocol: TCP
+
