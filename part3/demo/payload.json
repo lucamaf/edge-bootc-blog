@@ -1,0 +1,59 @@
+{
+    "resourceMetrics": [
+      {
+        "resource": {
+          "attributes": [
+            {
+              "key": "system",
+              "value": {"stringValue": "package"}
+            }
+          ]
+        },
+        "scopeMetrics": [
+          {
+            "metrics": [
+              {
+                "name": "core.cpu.power",
+                "unit": "W",
+                "description": "",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "asInt": "${temperature}",
+                      "timeUnixNano": "${now}000000000"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "uncore.gpu.power",
+                "unit": "W",
+                "description": "",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "asInt": "${temperature}",
+                      "timeUnixNano": "${now}000000000"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "dram.memory.power",
+                "unit": "W",
+                "description": "",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "asInt": "${temperature}",
+                      "timeUnixNano": "${now}000000000"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+}

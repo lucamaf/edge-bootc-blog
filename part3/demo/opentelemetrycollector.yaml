@@ -1,0 +1,51 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel
+  namespace: opentelemetry
+spec:
+  observability:
+    metrics: {}
+  config:
+    exporters:
+      debug:
+        verbosity: normal
+      otlphttp/coo:
+        endpoint: 'http://flightctl-monitoring-prometheus:9090/api/v1/otlp/'
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: '0.0.0.0:4318'
+    service:
+      pipelines:
+        logs:
+          exporters:
+            - debug
+          receivers:
+            - otlp
+        metrics:
+          exporters:
+            - debug
+            - otlphttp/coo
+          receivers:
+            - otlp
+      telemetry:
+        metrics:
+          address: '0.0.0.0:8888'
+  mode: deployment
+  managementState: managed
+  upgradeStrategy: automatic
+  ingress:
+    route:
+      termination: insecure
+    type: route
+  targetAllocator:
+    allocationStrategy: consistent-hashing
+    filterStrategy: relabel-config
+    observability:
+      metrics: {}
+    prometheusCR:
+      scrapeInterval: 30s
+    resources: {}
+  replicas: 1

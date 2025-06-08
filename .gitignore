@@ -3,3 +3,4 @@ pull-secret.json
 *.key
 *.rpm
 *.tmp
+*.old

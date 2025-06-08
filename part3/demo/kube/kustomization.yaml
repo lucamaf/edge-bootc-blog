@@ -1,0 +1,8 @@
+resources:
+  - namespace.yaml
+  - clusterrole.yaml
+  - serviceaccount.yaml
+  - crb.yaml
+  - configmap.yaml
+  - daemonset.yaml
+  - service.yaml

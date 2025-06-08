@@ -1,0 +1,12 @@
+[Unit]
+Description=Power Measure Agent
+After=network.target opentelemetry-collector.service
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=30
+ExecStart=/bin/bash -c "python3 /usr/bin/power_script.py"
+
+[Install]
+WantedBy=multi-user.target

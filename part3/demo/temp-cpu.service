@@ -1,0 +1,12 @@
+[Unit]
+Description=Temperature Agent
+After=network.target opentelemetry-collector.service
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=30
+ExecStart=/bin/bash -c /usr/bin/temp_script.sh
+
+[Install]
+WantedBy=multi-user.target

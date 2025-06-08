@@ -1,4 +1,8 @@
 receivers:
+  otlp:
+    protocols:
+      http:
+      grpc:
   hostmetrics:
     collection_interval: 10s
     scrapers:
@@ -47,10 +51,6 @@ processors:
     - action: insert
       key: host.id
       value: "${DEVICE_ID}"
-  attributes:
-    - action: insert
-      key: host.id
-      value: "${DEVICE_ID}"
   memory_limiter:
     check_interval: 10s
     limit_percentage: 5
@@ -59,7 +59,7 @@ processors:
 service:
   pipelines:
     metrics:
-      receivers: [hostmetrics,hostmetrics/disk]
+      receivers: [otlp,hostmetrics,hostmetrics/disk]
       processors: [memory_limiter, resource, batch]
       exporters: [debug, otlphttp]
     logs:

@@ -1,0 +1,4 @@
+Script started on 2025-04-02 13:27:17+02:00 [TERM="xterm" TTY="/dev/pts/6" COLUMNS="-1" LINES="-1"]
+bash: line 1: /usr/bin/power.sh: No such file or directory
+
+Script done on 2025-04-02 13:27:17+02:00 [COMMAND_EXIT_CODE="127"]
