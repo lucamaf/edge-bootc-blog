@@ -1,0 +1,4 @@
+[[customizations.user]]
+name = "kiosk-user"
+password = "redhat"
+groups = ["wheel"]

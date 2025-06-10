@@ -4,3 +4,6 @@ pull-secret.json
 *.rpm
 *.tmp
 *.old
+*.crt
+
+output/

@@ -1,0 +1,10 @@
+[Container]
+Image=quay.io/luferrar/tailwind-pos:latest
+GlobalArgs=--storage-opt=additionalimagestore=/usr/lib/bootc/storage
+PublishPort=8080:8080
+[Unit]
+Description=Tailwind POS
+[Install]
+WantedBy=default.target
+[Service]
+Restart=always

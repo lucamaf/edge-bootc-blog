@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Firefox
+Exec=firefox --kiosk http://localhost:8080
+X-GNOME-Autostart-enabled=true

@@ -15,10 +15,10 @@ kube-system      	coredns-668d6bf9bc-nsvsb                 	1/1 	Running   0    
 kube-system      	etcd-kind-control-plane                  	1/1 	Running   0      	2m49s
 kube-system      	kindnet-gkxd2                            	1/1 	Running   0      	2m44s
 kube-system      	kube-apiserver-kind-control-plane        	1/1 	Running   0      	2m49s
-kube-system      	kube-controller-manager-kind-control-plane   1/1 	Running   0      	2m49s
+kube-system      	kube-controller-manager-kind-control-plane  1/1 	Running   0      	2m49s
 kube-system      	kube-proxy-94gkd                         	1/1 	Running   0      	2m44s
 kube-system      	kube-scheduler-kind-control-plane        	1/1 	Running   0      	2m49s
-local-path-storage   local-path-provisioner-7dc846544d-7mzbq  	1/1 	Running   0      	2m44s
+local-path-storage  local-path-provisioner-7dc846544d-7mzbq  	1/1 	Running   0      	2m44s
 ```
 
 Deploy Flight Control on Kind with
@@ -37,7 +37,7 @@ NAME                              	READY   STATUS  	RESTARTS    	AGE
 flightctl-api-85945b9d9f-hldm5    	1/1 	Running 	1 (2m46s ago)   6m18s
 flightctl-db-5c68587f4d-6z4tw     	1/1 	Running 	0           	6m18s
 flightctl-kv-0                    	1/1 	Running 	0           	6m18s
-flightctl-periodic-8595f8db48-d8kh8   1/1 	Running 	0           	6m18s
+flightctl-periodic-8595f8db48-d8kh8 1/1 	Running 	0           	6m18s
 flightctl-secrets-bkrjj           	0/1 	Completed   0           	6m18s
 flightctl-ui-867568898-fkktq      	1/1 	Running 	2 (36s ago) 	6m18s
 flightctl-worker-64cb8947b8-tn7kv 	1/1 	Running 	1 (37s ago) 	6m18s
@@ -66,17 +66,43 @@ Once you open the page you will get redirected to the authentication page (as Fl
 
 You can get the password for the default user demouser like this:
 
-`$ 	kubectl get secret -n flightctl keycloak-demouser-secret -o=jsonpath='{.data.password}' | base64 -d`
+`$ kubectl get secret -n flightctl keycloak-demouser-secret -o=jsonpath='{.data.password}' | base64 -d`
+
+Login to your Flight Control instance with 
+
+```
+$ flightctl login https://192.168.1.48.nip.io:3443 --insecure-skip-tls-verify --username demouser --password your-password-here
+```
+
+Generate the config.yaml that includes public key to authenticate the device you are going to enroll
+
+```
+$ flightctl certificate request --signer=enrollment --expiration=365d --output=embedded > config.yaml
+
+```
+
+Now you can generate the first bootc image with Podman (you will find Containerfilev1 and Containerfilev2 in this same folder)
+
+```
+$ sudo podman build -t quay.io/luferrar/kiosk:latest -f Containerfilev1 
+```
+
+Push image to quay and build the ISO with 
+
+```
+$ sudo podman push quay.io/luferrar/kiosk
+$ sudo podman run       --rm    -it     --privileged    --pull=newer    --security-opt label=type:unconfined_t  -v /var/lib/containers/storage:/var/lib/containers/storage         -v $(pwd)/config.toml:/config.toml      -v $(pwd)/output:/output        quay.io/centos-bootc/bootc-image-builder:latest         --type qcow2  --use-librepo=True   --config /config.toml  quay.io/luferrar/kiosk:latest
+```
 
 
-
-Make sure have KVM installed on the system with (in the case of Fedora):
+Make sure you have KVM installed on the system where you will run the bootc virtualized device with (in the case of Fedora):
 
 ```
 $ sudo dnf group install --with-optional virtualization
 $ sudo systemctl enable --now libvirtd
 ```
 
-## Build v1 image
-
+## Run v1 image
+podman with image bound application centos 9
 ## Build v2 image (and automatic update with FlightCTL)
+podman with image bound application centos 10
