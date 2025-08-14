@@ -60,9 +60,9 @@ $ sudo firewall-cmd --zone=public --add-port=8081/tcp --permanent
 success
 $ sudo firewall-cmd –reload
 ```
-Navigate to http://<YOUR-SYSTEM-A-IP-ADDRESS>.nip.io:9000
+Navigate to `http://<YOUR-SYSTEM-A-IP-ADDRESS>.nip.io:9000`
 
-Once you open the page you will get redirected to the authentication page (as Flight Control comes with a preconfigured IDP [https://www.keycloak.org/]).
+Once you open the page you will get redirected to the authentication page (as Flight Control comes with a preconfigured [IDP](https://www.keycloak.org/)).
 
 You can get the password for the default user demouser like this:
 
@@ -95,7 +95,7 @@ $ sudo podman run       --rm    -it     --privileged    --pull=newer    --securi
 ```
 
 
-Make sure you have KVM installed on the system where you will run the bootc virtualized device with (in the case of Fedora):
+Make sure you have KVM installed on the system where you will run the bootc virtualized device with (in this case for Fedora):
 
 ```
 $ sudo dnf group install --with-optional virtualization
@@ -103,6 +103,35 @@ $ sudo systemctl enable --now libvirtd
 ```
 
 ## Run v1 image
-podman with image bound application centos 9
+Run the VM based on the created image with `virt-install` (possibly from a different machine than the one used to install Flight Control)
+```
+sudo virt-install \
+    --name kiosk-bootc \
+    --cpu host \
+    --vcpus 2 \
+    --memory 4096 \
+    --import --disk /var/lib/libvirt/images/disk.qcow2,format=qcow2 \
+	--boot uefi \
+	--network network=default \
+	--graphics vnc \
+    --os-variant centos-stream9
+```
+Make sure that the device shows up on the deployed Flight Control
+![alt text](image.png)
+
+and after approval you will see something like this
+![alt text](image-1.png)
+
+Let's now proceed and define in the device template a target image
+![alt text](image-2.png)
+
+Let's now track also the availability of the `tailwind` container as systemd service
+![alt text](image-3.png)
+
+
 ## Build v2 image (and automatic update with FlightCTL)
-podman with image bound application centos 10
+We are now going to do a "small update" and move to `centos-10-stream` with very little effort and disruption. 
+
+Let's first create a second image based on a different base image and push it to **quay.io** with the same tag used before
+
+```
