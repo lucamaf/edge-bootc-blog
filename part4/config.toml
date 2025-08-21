@@ -1,0 +1,16 @@
+# This section contains the kickstart configuration for the installer.
+# It includes network settings, partitioning, and other installation options.
+[customizations.installer.kickstart]
+contents = """
+text --non-interactive
+timezone Europe/Rome
+zerombr
+clearpart --all --initlabel --disklabel=gpt
+autopart --noswap --type=lvm
+network --bootproto=static --gateway=192.168.0.1 --ip=192.168.0.240 --netmask=255.255.255.0 --nameserver=192.168.0.1 --hostname=kiosk.example.com --activate --onboot=on
+user --name=luca --password=password --plaintext --groups=wheel
+sshkey --username=luca "ssh-rsa KEY"
+%post
+bootc switch --mutate-in-place --transport registry quay.io/luferrar/rhel_9_kiosk:latest
+%end
+"""
