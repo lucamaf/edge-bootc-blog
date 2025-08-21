@@ -1,0 +1,8 @@
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c "export XDG_RUNTIME_DIR=/run/user/$(id -u luca); gsettings set org.gnome.desktop.screensaver idle-activation-enabled false"
+ExecStart=/bin/bash -c "export XDG_RUNTIME_DIR=/run/user/$(id -u luca); gsettings set org.gnome.desktop.lockdown disable-lock-screen true"
+ExecStart=/bin/bash -c "export XDG_RUNTIME_DIR=/run/user/$(id -u luca); gsettings set org.gnome.desktop.session idle-delay 0"
+
+[Install]
+WantedBy=multi-user.target default.target

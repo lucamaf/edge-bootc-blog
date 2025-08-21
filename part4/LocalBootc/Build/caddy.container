@@ -1,0 +1,12 @@
+[Unit]
+Description=Run a demo webserver
+
+[Container]
+# This image happens to be multiarch and somewhat maintained
+Image=docker.io/library/caddy
+PublishPort=80:80
+AutoUpdate=registry
+
+[Install]
+WantedBy=default.target
+

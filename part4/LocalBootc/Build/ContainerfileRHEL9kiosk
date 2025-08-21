@@ -1,0 +1,33 @@
+FROM quay.io/luferrar/rhel_9_kiosk:fc
+
+# enable linger so user services run whether user logged in or not
+COPY enable-linger.service /etc/systemd/system/enable-linger.service
+RUN systemctl enable enable-linger.service
+
+# disable screen deactivation and screensaver
+RUN mkdir -p /var/home/luca/.config/
+RUN mkdir /var/home/luca/.config/systemd
+RUN mkdir /var/home/luca/.config/systemd/user
+RUN mkdir /var/home/luca/.config/systemd/user/default.target.wants
+COPY disable-screensaver.service /home/luca/.config/systemd/user/disable-screensaver.service
+RUN ln -s /home/luca/.config/systemd/user/disable-screensaver.service /home/luca/.config/systemd/user/default.target.wants/disable-screensaver.service
+
+RUN systemctl set-default graphical.target
+
+# blacklist r8169 realtek driver and add r8168
+#COPY blacklist_r8169.conf /etc/modprobe.d/blacklist_r8169.conf
+#RUN rpm --import https://www.elrepo.org/RPM-GPG-KEY-v2-elrepo.org && \
+#    dnf -y install https://www.elrepo.org/elrepo-release-10.el10.elrepo.noarch.rpm && \
+#    dnf -y install kmod-r8168 && \
+#    dnf -y clean all
+
+
+# enable autologin for user 'luca'
+RUN sed -i '/^\[daemon\]/a AutomaticLoginEnable=True\nAutomaticLogin=luca\n' /etc/gdm/custom.conf
+
+#Configure user luca to use the kiosk session
+RUN mkdir -p /var/lib/AccountsService/users
+COPY luca /var/lib/AccountsService/users/luca
+
+# add automatic start of firefox in kiosk mode with home assistant page
+COPY kiosk.desktop /etc/xdg/autostart/kiosk.desktop

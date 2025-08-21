@@ -1,0 +1,4 @@
+[Desktop Entry]
+Type=Application
+Name=kiosk
+Exec=bash -c 'sleep 30 && firefox --kiosk http://my-home-assistant.apps.microshift.lmf.openshift.es/dashboard-test/default_view?kiosk'

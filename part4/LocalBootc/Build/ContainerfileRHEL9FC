@@ -1,0 +1,17 @@
+FROM quay.io/luferrar/rhel_9_kiosk:latest
+
+# disable suspend and hibernate options
+RUN systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+
+# add flighctl agent configuration
+# disable automatic bootc updates
+RUN dnf -y copr enable @redhat-et/flightctl epel-9-x86_64 && \
+    dnf -y install flightctl-agent && \
+    dnf -y clean all && \
+    systemctl set-default graphical.target && \
+    systemctl enable flightctl-agent.service && \
+    systemctl mask bootc-fetch-apply-updates.timer
+
+
+ADD config.yaml /etc/flightctl/
