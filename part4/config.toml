@@ -7,10 +7,14 @@ timezone Europe/Rome
 zerombr
 clearpart --all --initlabel --disklabel=gpt
 autopart --noswap --type=lvm
-network --bootproto=static --gateway=192.168.0.1 --ip=192.168.0.240 --netmask=255.255.255.0 --nameserver=192.168.0.1 --hostname=kiosk.example.com --activate --onboot=on
-user --name=luca --password=password --plaintext --groups=wheel
-sshkey --username=luca "ssh-rsa KEY"
+network --bootproto=static --gateway=192.168.1.1 --ip=192.168.1.70 --netmask=255.255.255.0 --nameserver=192.168.1.116 --hostname=kiosk.example.com --activate --onboot=on
+user --name=luca --password=R3dH4t! --plaintext --groups=wheel
+sshkey --username=luca "ssh-rsa KEY luferrar@x1-lmf"
+# Adding a system user with password R3dH4t! hashed
+user --groups=wheel --name=admin --password=$6$3VOMswIOOVKBzAKh$LWmSkKiuCCHMhUuH.CeqmfOQ6yqTPWKU3IH7MD7AHiPPZtauqEGwfKSjm82WXv.aS0ZwSSXY1mJLGQSDddoMI. --iscrypted
 %post
 bootc switch --mutate-in-place --transport registry quay.io/luferrar/rhel_9_kiosk:latest
 %end
+# This command will eject the CD/DVD and then reboot the system
+reboot --eject
 """

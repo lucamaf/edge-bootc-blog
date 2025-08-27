@@ -6,4 +6,7 @@ pull-secret.json
 *.old
 *.crt
 
+#poc
+ContainerfileRHEL9GS
+
 output/
