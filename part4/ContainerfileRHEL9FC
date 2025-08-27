@@ -1,7 +1,5 @@
+# tagged as "fc" for flightcontrol
 FROM quay.io/luferrar/rhel_9_kiosk:latest
-
-# disable suspend and hibernate options
-RUN systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
 
 
 # add flighctl agent configuration

@@ -2,7 +2,7 @@
 # an application container via https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html
 # that is also configured for automatic updates via
 # https://docs.podman.io/en/latest/markdown/podman-auto-update.1.html
-
+# tagged as "latest"
 FROM registry.redhat.io/rhel9/rhel-bootc:latest
 
 RUN dnf -y group install GNOME && \
