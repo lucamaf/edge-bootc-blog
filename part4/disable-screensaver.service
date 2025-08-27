@@ -5,4 +5,4 @@ ExecStart=/bin/bash -c "export XDG_RUNTIME_DIR=/run/user/$(id -u luca); gsetting
 ExecStart=/bin/bash -c "export XDG_RUNTIME_DIR=/run/user/$(id -u luca); gsettings set org.gnome.desktop.session idle-delay 0"
 
 [Install]
-WantedBy=multi-user.target default.target
+WantedBy=default.target

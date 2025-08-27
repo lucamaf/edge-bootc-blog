@@ -3,4 +3,4 @@ Type=oneshot
 ExecStart=loginctl enable-linger luca
 
 [Install]
-WantedBy=multi-user.target default.target
+WantedBy=default.target

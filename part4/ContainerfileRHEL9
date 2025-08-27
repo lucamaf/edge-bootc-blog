@@ -6,10 +6,13 @@
 FROM registry.redhat.io/rhel9/rhel-bootc:latest
 
 RUN dnf -y group install GNOME && \
-    dnf -y install firefox cockpit cockpit-podman && \
+    dnf -y install firefox cockpit cockpit-podman mkpasswd && \
     dnf -y clean all
 
 RUN systemctl set-default graphical.target
+
+# adding system user
+RUN pass=$(mkpasswd --method=SHA-512 --rounds=4096 R3dH4t!) && useradd -m -G wheel admin -p $pass
 
 # install and enable firewall 
 RUN dnf -y install firewalld && \
@@ -26,7 +29,7 @@ RUN dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.n
     dnf -y clean all
 
 # remove unnecessary packages
-RUN dnf -y remove gnome-tour gnome-calculator cheese totem && \
+RUN dnf -y remove gnome-tour gnome-calculator cheese totem avahi-daemon && \
     dnf -y clean all
 
 
@@ -40,5 +43,4 @@ RUN ln -s /usr/share/containers/systemd/caddy.container /usr/lib/bootc/bound-ima
 # other tooling like Watchtower or explicit out-of-band control over container
 # updates via e.g. Ansible or other custom logic.
 RUN systemctl enable podman-auto-update.timer && \
-    systemctl enable cockpit.socket && \
-    systemctl disable avahi-daemon
+    systemctl enable cockpit.socket
