@@ -1,0 +1,22 @@
+apiVersion: flightctl.io/v1alpha1
+kind: Fleet
+metadata:
+  labels:
+    key: value
+  name: gs-kiosks
+spec:
+  selector:
+    matchLabels:
+      role: station-kiosk
+  template:
+    metadata:
+      labels:
+        fleet: gs-kiosks
+    spec:
+      applications: []
+      config: []
+      os:
+        image: quay.io/luferrar/rhel_9_kiosk:gsbeta
+      systemd:
+        matchPatterns:
+          - flightctl-agent.service
