@@ -1,6 +1,5 @@
-    #!/bin/sh
-    # Get boot date from 'who -b'
-    boot_info=$(who -b)
-
-    # Display the information
-    echo "Last boot: $boot_info"
+#!/bin/sh
+# Get boot date from 'who -b'
+boot_info=$(who -b)
+# Display the information
+echo "Last boot: $boot_info"
