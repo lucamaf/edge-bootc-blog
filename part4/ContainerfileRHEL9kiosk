@@ -5,6 +5,11 @@ FROM quay.io/luferrar/rhel_9_kiosk:fc
 # install kiosk packages
 RUN dnf -y install gnome-kiosk gnome-kiosk-search-appliance && dnf -y clean all
 
+# install figlet package for ascii art & RDP for remote access
+RUN dnf -y install figlet xrdp && dnf -y clean all && \
+    systemctl enable xrdp && \
+    firewall-offline-cmd --add-service=rdp
+
 # disable suspend and hibernate options
 RUN systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
 

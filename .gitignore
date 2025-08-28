@@ -8,5 +8,8 @@ pull-secret.json
 
 #poc
 ContainerfileRHEL9GS
+install-vidireports.service
+run-vidireports.service
+vidireports.sh
 
 output/
