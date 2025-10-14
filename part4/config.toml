@@ -3,11 +3,13 @@
 [customizations.installer.kickstart]
 contents = """
 text --non-interactive
-timezone Europe/Rome --isUtc
+timezone Europe/Rome --utc
 zerombr
 clearpart --all --initlabel --disklabel=gpt
 autopart --noswap --type=lvm
-network --bootproto=static --gateway=192.168.1.1 --ip=192.168.1.70 --netmask=255.255.255.0 --nameserver=192.168.1.116 --hostname=gs.lmf.openshift.es --activate --onboot=on
+network --bootproto=static --device=enp1s0 --gateway=192.168.1.1 --ip=192.168.1.71 --netmask=255.255.255.0 --nameserver=192.168.1.116 --hostname=advantech1.lmf.openshift.es --activate --onboot=on
+# This command will eject the CD/DVD and then reboot the system
+halt --eject
 user --name=luca --password=R3dH4t! --plaintext --groups=wheel
 sshkey --username=luca "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCIwy1xjLDgiUIPtYEoI9fn0/Vy9m1atkjGHXURZd+gjLYzgqP8gyUFjtRLkZsPSGmi4m7dBT/DH+Es1NnHKqY9xfDtScayt7B0v6T1W16jcZim6EDFQOHKfo1K7wYlgrd2OteIxUGRVsQ/rjg5ZFvPUsdyVk1yTTvkNzcdhk6XPtScUjIFOaB/ncFh/Gj2xhx05QyHaqbqNuPGsSoO6IbjyojtLAZQYDXRkeksVRrmLdaTh+P7TbaEamRO6ncLV1nlLXt9cjPPWQDbDqpr5O7bJG2MdFA5g4o66mbkm7siGcEsUdg0xn4darcapTHKHQa7EOg9lgID/9cE/QcKPxwCFlQ70mcPFsMsoGHB0jUcoz3wsj3/2Mw326T9EeJE3sUnRojgpLGGLrnAn8tcyZOVx5Vy1GuW2rXqW+x4HpulTOZbDv+ZoUPy0xt4dUM1R4M/9Wvq+SKVsgZXvkUPGthUzleqWEOrdaOQO8RFrWZx4JzKtGBj6NGzntjegU+sykk= luferrar@x1-lmf"
 # Adding a system user with password R3dH4t! hashed
@@ -16,6 +18,4 @@ sshkey --username=luca "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCIwy1xjLDgiUIPtYEo
 bootc switch --mutate-in-place --transport registry quay.io/luferrar/rhel_9_kiosk:latest
 systemctl set-default graphical.target
 %end
-# This command will eject the CD/DVD and then reboot the system
-reboot --eject
 """

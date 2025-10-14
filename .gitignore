@@ -10,6 +10,8 @@ pull-secret.json
 ContainerfileRHEL9GS
 install-vidireports.service
 run-vidireports.service
+run-broadsign-vm.service
 vidireports.sh
+virsh-start.sh
 
 output/
