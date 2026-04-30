@@ -5,6 +5,8 @@ pull-secret.json
 *.tmp
 *.old
 *.crt
+hosts
+.env
 
 #poc
 ContainerfileRHEL9GS
@@ -13,5 +15,9 @@ run-vidireports.service
 run-broadsign-vm.service
 vidireports.sh
 virsh-start.sh
+.rhc*
+
+#Plugfest file
+Plugfest/
 
 output/

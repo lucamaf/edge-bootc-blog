@@ -1,0 +1,78 @@
+# This image will be tagged as quay.io/luferrar/part5:device001
+FROM registry.redhat.io/rhel9/rhel-bootc:latest
+
+# additional packages including graphical
+RUN dnf -y group install GNOME && \
+    dnf -y install \
+    firefox \
+    cockpit \
+    cockpit-podman \
+    mkpasswd \
+    nmstate \
+    podman \
+    vim-enhanced \
+    NetworkManager-wifi \
+    iwl* \
+    bash-completion \
+    systemd-container \
+    git \
+    runc \
+    skopeo \
+    lorax \
+    ansible-core \
+    lvm2 \
+    && dnf clean all
+
+# Podman-compose
+# Install packages from EPEL
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
+    && dnf clean all
+RUN dnf install -y \
+    podman-compose \
+    helm \
+    btop \
+    && dnf clean all
+
+# Flightctl CLI and agent
+RUN dnf config-manager --add-repo https://rpm.flightctl.io/flightctl-epel.repo
+RUN dnf install -y \
+    flightctl-agent \
+    flightctl-cli \
+    && dnf clean all
+
+# install and enable firewall 
+RUN dnf -y install firewalld && \
+    dnf -y clean all
+    
+# remove unnecessary packages
+RUN dnf -y remove gnome-tour gnome-calculator cheese totem avahi-daemon && \
+    dnf -y clean all
+
+RUN systemctl set-default graphical.target
+
+RUN firewall-offline-cmd --add-service=cockpit && \
+    systemctl enable firewalld
+
+# Enable cockpit
+RUN systemctl enable cockpit.socket
+
+# Add hardcoded host file for demo purposes
+#COPY hosts /etc/hosts
+
+ARG FLIGHTCTL_API_URL
+ARG FLIGHTCTL_USERNAME
+ARG FLIGHTCTL_PASSWORD
+
+# Flightctl enrollment
+RUN rm /var/lib/flightctl/certs/* || true
+RUN flightctl login "https://${FLIGHTCTL_API_URL}" --username "${FLIGHTCTL_USERNAME}" --password "${FLIGHTCTL_PASSWORD}" --provider my-keycloak --insecure-skip-tls-verify
+RUN flightctl certificate request --signer=enrollment --expiration=365d --output=embedded > /etc/flightctl/config.yaml
+
+# Enable agent
+RUN systemctl enable flightctl-agent.service
+
+# Disable auto-updating
+RUN systemctl mask bootc-fetch-apply-updates.timer
+
+# Lint the build
+RUN bootc container lint
