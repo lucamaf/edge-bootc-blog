@@ -6,7 +6,7 @@ ConditionPathExists=/etc/.run_tailscale_next_boot
 
 [Service]
 Type=oneshot
-ExecStart=tailscale up --auth-key=tskey-auth-kfunHPKBhf11CNTRL-Vz9JSmdw6t8PrYfb4MVPs8FJBFJQouyrK --accept-dns=false
+ExecStart=tailscale up --auth-key=tskey-auth-SOMEKEY --accept-dns=false
 ExecStartPre=/bin/rm -f /etc/.run_tailscale_next_boot
 
 [Install]

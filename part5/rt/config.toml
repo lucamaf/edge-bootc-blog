@@ -1,0 +1,47 @@
+# This section contains the kickstart configuration for the installer.
+# It includes network settings, partitioning, and other installation options.
+[customizations.installer.kickstart]
+contents = """
+text --non-interactive
+lang en_US.UTF-8
+keyboard us
+
+rootpw --lock
+
+timezone Europe/Rome --utc
+
+zerombr
+clearpart --all --initlabel --disklabel=gpt
+part /boot/efi --fstype=efi --size=500
+part /boot --fstype=xfs --asprimary --size=1024
+part pv.01 --grow
+volgroup rhel pv.01
+logvol / --vgname=rhel --fstype=xfs --size=90720 --name=root
+logvol /var/home --vgname=rhel --fstype=xfs --size=50120 --name=home
+
+network --bootproto=dhcp --hostname=firebat.lmf.openshift.es --activate --onboot=on
+
+# This command will eject the CD/DVD and then reboot the system
+reboot
+
+user --name=luca --password=R3dH4t! --plaintext --groups=wheel
+sshkey --username=luca "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCIwy1xjLDgiUIPtYEoI9fn0/Vy9m1atkjGHXURZd+gjLYzgqP8gyUFjtRLkZsPSGmi4m7dBT/DH+Es1NnHKqY9xfDtScayt7B0v6T1W16jcZim6EDFQOHKfo1K7wYlgrd2OteIxUGRVsQ/rjg5ZFvPUsdyVk1yTTvkNzcdhk6XPtScUjIFOaB/ncFh/Gj2xhx05QyHaqbqNuPGsSoO6IbjyojtLAZQYDXRkeksVRrmLdaTh+P7TbaEamRO6ncLV1nlLXt9cjPPWQDbDqpr5O7bJG2MdFA5g4o66mbkm7siGcEsUdg0xn4darcapTHKHQa7EOg9lgID/9cE/QcKPxwCFlQ70mcPFsMsoGHB0jUcoz3wsj3/2Mw326T9EeJE3sUnRojgpLGGLrnAn8tcyZOVx5Vy1GuW2rXqW+x4HpulTOZbDv+ZoUPy0xt4dUM1R4M/9Wvq+SKVsgZXvkUPGthUzleqWEOrdaOQO8RFrWZx4JzKtGBj6NGzntjegU+sykk= luferrar@x1-lmf"
+# Adding a system user with password R3dH4t! hashed
+user --groups=wheel --name=admin --password=$6$3VOMswIOOVKBzAKh$LWmSkKiuCCHMhUuH.CeqmfOQ6yqTPWKU3IH7MD7AHiPPZtauqEGwfKSjm82WXv.aS0ZwSSXY1mJLGQSDddoMI. --iscrypted
+
+%post
+bootc switch --mutate-in-place --transport registry quay.io/luferrar/part5:device001rt
+
+systemctl set-default graphical.target
+
+# Configure systemd journal service to persist logs between boots and limit their size to 1G
+sudo mkdir -p /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/microshift.conf <<EOF
+[Journal]
+Storage=persistent
+SystemMaxUse=1G
+RuntimeMaxUse=1G
+EOF
+
+%end
+"""

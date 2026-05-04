@@ -1,11 +1,11 @@
-#This image will be tagged as quay.io/luferrar/part5:device002
-#using this as starting point https://gitlab.com/LeoBras/rt-pretuned-bootc/-/blob/main/tuned.containerfile?ref_type=heads
+#This image will be tagged as quay.io/luferrar/part5:device001rt
+#using this as starting point https://gitlab.com/fedora/bootc/examples/-/blob/main/kernel-rt-rpm-ostree/Containerfile?ref_type=heads
 FROM registry.redhat.io/rhel9/rhel-bootc:latest
 
 #Install rt-kernel
 RUN dnf config-manager --set-enabled rhel-9-for-x86_64-rt-rpms
-RUN rpm-ostree override remove kernel kernel-{core,modules,modules-core} \
-   --install kernel-rt-core --install kernel-rt-modules --install kernel-rt-modules-core
+RUN dnf remove -y kernel kernel-{core,modules,modules-core} \
+    && dnf install -y kernel-rt-core kernel-rt-modules kernel-rt-modules-core
 
 #Install tuned & realtime stuff
 RUN dnf install -y \
@@ -22,6 +22,7 @@ RUN dnf install -y \
     && dnf clean all
 RUN systemctl enable tuned 
 
+ARG TARGET_PROFILE
 #since we cannot apply tuned during the build we create a systemd unit that will be executed on the first boot and apply tuned profile.
 COPY rt-tuning-first-boot.sh /usr/local/sbin/custom-rt-tuning-first-boot.sh 
 RUN chmod +x /usr/local/sbin/custom-rt-tuning-first-boot.sh
@@ -45,6 +46,74 @@ RUN rm /usr/lib/bootc/kargs.d/*.toml ;\
 ARG RTCPU_LIST=1
 #adding in the end so that if we build image for guest and host we can use cache
 RUN sed -i "s/^isolated_cores.*/isolated_cores=${RTCPU_LIST}/" /etc/tuned/${TARGET_PROFILE}-variables.conf
+
+# Additional packages including graphical
+RUN dnf -y group install GNOME && \
+    dnf -y install \
+    firefox \
+    cockpit \
+    cockpit-podman \
+    mkpasswd \
+    nmstate \
+    podman \
+    vim-enhanced \
+    NetworkManager-wifi \
+    iwl* \
+    bash-completion \
+    systemd-container \
+    git \
+    runc \
+    skopeo \
+    lorax \
+    ansible-core \
+    lvm2 \
+    && dnf clean all
+
+# Podman-compose
+# Install packages from EPEL
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
+    && dnf clean all
+RUN dnf install -y \
+    podman-compose \
+    btop \
+    && dnf clean all
+
+# Flightctl CLI and agent
+RUN dnf config-manager --add-repo https://rpm.flightctl.io/flightctl-epel.repo
+RUN dnf install -y \
+    flightctl-agent \
+    flightctl-cli \
+    && dnf clean all
+
+# install and enable firewall 
+RUN dnf -y install firewalld && \
+    dnf -y clean all
+    
+RUN systemctl set-default graphical.target
+
+RUN firewall-offline-cmd --add-service=cockpit && \
+    systemctl enable firewalld
+
+# Enable cockpit
+RUN systemctl enable cockpit.socket
+
+ARG FLIGHTCTL_API_URL
+ARG FLIGHTCTL_USERNAME
+ARG FLIGHTCTL_PASSWORD
+
+# Flightctl enrollment
+RUN rm /var/lib/flightctl/certs/* || true
+RUN flightctl login "https://${FLIGHTCTL_API_URL}" --username "${FLIGHTCTL_USERNAME}" --password "${FLIGHTCTL_PASSWORD}" --provider my-keycloak --insecure-skip-tls-verify
+RUN flightctl certificate request --signer=enrollment --expiration=365d --output=embedded > /etc/flightctl/config.yaml
+
+# Enable agent
+RUN systemctl enable flightctl-agent.service
+
+# Disable auto-updating
+RUN systemctl mask bootc-fetch-apply-updates.timer
+
+# enable sudo without password for wheel group
+RUN echo "%wheel        ALL=(ALL)       NOPASSWD: ALL" > /etc/sudoers.d/wheel-sudo
 
 # Lint the build
 RUN bootc container lint
