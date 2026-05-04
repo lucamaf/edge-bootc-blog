@@ -16,6 +16,7 @@ run-broadsign-vm.service
 vidireports.sh
 virsh-start.sh
 .rhc*
+tailscale-login.service
 
 #Plugfest file
 Plugfest/
