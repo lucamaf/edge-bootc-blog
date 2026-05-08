@@ -1,0 +1,12 @@
+FROM registry.redhat.io/ubi9/python-311
+
+WORKDIR /app
+
+RUN pip install pymodbus==3.6.1 pyyaml==6.0
+
+COPY sensor.py /app/sensor.py
+COPY config.yaml /app/config.yaml
+
+EXPOSE 502
+
+CMD ["python", "sensor.py"]

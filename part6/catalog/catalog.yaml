@@ -1,0 +1,13 @@
+apiVersion: flightctl.io/v1alpha1
+kind: Catalog
+metadata:
+  name: rtu-iiot
+  labels:
+    team: gas
+    purpose: iiot-sensors
+spec:
+  displayName: RTU IIoT Sensor Suite
+  shortDescription: Industrial IoT applications for gas flow measurement and monitoring
+  provider: RTU
+  icon: https://www.dropbox.com/scl/fi/i37vh55kd9k9ivi8sd2bb/gas-24.ico?rlkey=nqy75hfq4vnp72cukag4yvalc&st=v9ju3m9a&dl=0
+  support: https://github.com/luferrar/edge-bootc-blog/issues

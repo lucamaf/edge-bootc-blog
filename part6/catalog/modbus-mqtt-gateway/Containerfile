@@ -1,0 +1,10 @@
+FROM registry.redhat.io/ubi9/python-311
+
+WORKDIR /app
+
+RUN pip install pymodbus==3.6.1 paho-mqtt==1.6.1 pyyaml==6.0
+
+COPY gateway.py /app/gateway.py
+COPY config.yaml /app/config.yaml
+
+CMD ["python", "gateway.py"]

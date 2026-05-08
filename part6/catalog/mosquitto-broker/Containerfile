@@ -1,0 +1,7 @@
+FROM docker.io/eclipse-mosquitto:2.0.18
+
+COPY mosquitto.conf /mosquitto/config/mosquitto.conf
+
+EXPOSE 1883 8883 9001
+
+CMD ["mosquitto", "-c", "/mosquitto/config/mosquitto.conf"]

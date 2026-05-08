@@ -1,0 +1,14 @@
+server:
+  host: "0.0.0.0"
+  port: 502
+  protocol: "tcp"
+
+sensor:
+  # Initial sensor values
+  initial_dp: 50.0           # Differential Pressure in Pa
+  initial_sp: 101325.0       # Static Pressure in Pa (1 atm)
+  initial_temp: 20.0         # Temperature in Celsius
+  
+  # Orifice plate parameters
+  orifice_diameter: 0.05     # Orifice diameter in meters (50mm)
+  discharge_coefficient: 0.61 # Typical value for sharp-edged orifice

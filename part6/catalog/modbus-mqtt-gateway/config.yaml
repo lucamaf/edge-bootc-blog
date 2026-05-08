@@ -1,0 +1,13 @@
+device_id: "sensor-001"
+poll_interval: 5  # seconds
+
+modbus:
+  host: "modbus-gas-sensor"  # Service name or IP address
+  port: 502
+  slave_id: 1
+
+mqtt:
+  host: "mosquitto-broker"   # Service name or IP address
+  port: 1883
+  username: null
+  password: null

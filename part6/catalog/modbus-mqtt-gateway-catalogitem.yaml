@@ -1,0 +1,143 @@
+apiVersion: flightctl.io/v1alpha1
+kind: CatalogItem
+metadata:
+  name: modbus-mqtt-gateway
+  catalog: rtu-iiot
+  labels:
+    category: gateways
+    protocol: modbus-mqtt
+spec:
+  type: container
+  displayName: Modbus to MQTT Gateway
+  shortDescription: Translates Modbus sensor readings into MQTT topics for real-time monitoring
+  provider: RTU
+  category: application
+  
+  readme: |
+    # Modbus to MQTT Gateway
+    
+    ## Overview
+    This gateway bridges industrial Modbus devices (such as the Modbus Gas Sensor) with MQTT 
+    for cloud-native data collection and analysis. It continuously reads measurements from a 
+    Modbus device and publishes them to MQTT topics.
+    
+    ## Features
+    - Real-time data polling from Modbus TCP devices
+    - Automatic conversion from fixed-point to decimal values
+    - Structured MQTT topic hierarchy
+    - Configurable polling interval
+    - Robust error handling and reconnection logic
+    
+    ## MQTT Topic Structure
+    ```
+    rtu/sensor/{device_id}/dp         - Differential Pressure (Pa)
+    rtu/sensor/{device_id}/sp         - Static Pressure (Pa)
+    rtu/sensor/{device_id}/temp       - Temperature (°C)
+    rtu/sensor/{device_id}/flow       - Gas Flow (m³/h)
+    rtu/sensor/{device_id}/timestamp  - Last reading timestamp (ISO 8601)
+    rtu/sensor/{device_id}/status     - Full status JSON object
+    ```
+    
+    ## Configuration
+    Configure the following in `config.yaml`:
+    - `modbus.host`: Hostname or IP of Modbus device
+    - `modbus.port`: Modbus TCP port (default: 502)
+    - `mqtt.host`: Hostname or IP of MQTT broker
+    - `mqtt.port`: MQTT port (default: 1883)
+    - `device_id`: Unique device identifier
+    - `poll_interval`: Reading interval in seconds
+    
+    ## Service Dependencies
+    - **Modbus Gas Sensor**: Must be running and accessible
+    - **MQTT Broker**: Must be running and accessible
+    
+    ## Example Usage
+    Subscribe to all measurements:
+    ```bash
+    mosquitto_sub -h mqtt-broker -t 'rtu/sensor/sensor-001/#' -v
+    ```
+    
+    Subscribe to only flow rate:
+    ```bash
+    mosquitto_sub -h mqtt-broker -t 'rtu/sensor/sensor-001/flow' -v
+    ```
+  
+  artifacts:
+    - type: container
+      uri: quay.io/luferrar/rtu-modbus-mqtt-gateway
+  
+  versions:
+    - version: "1.0.0"
+      channels:
+        - stable
+      references:
+        container: "1.0.0"
+  
+  config:
+    env:
+      - name: MODBUS_HOST
+        value: "modbus-gas-sensor"
+      - name: MODBUS_PORT
+        value: "502"
+      - name: MQTT_HOST
+        value: "mosquitto-broker"
+      - name: MQTT_PORT
+        value: "1883"
+      - name: DEVICE_ID
+        value: "sensor-001"
+      - name: POLL_INTERVAL
+        value: "5"
+      - name: LOG_LEVEL
+        value: "INFO"
+    
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"
+  
+  configSchema: |
+    {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "modbus_host": {
+          "type": "string",
+          "description": "Modbus device hostname or IP address",
+          "default": "modbus-gas-sensor"
+        },
+        "modbus_port": {
+          "type": "integer",
+          "description": "Modbus TCP port",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 502
+        },
+        "mqtt_host": {
+          "type": "string",
+          "description": "MQTT broker hostname or IP address",
+          "default": "mosquitto-broker"
+        },
+        "mqtt_port": {
+          "type": "integer",
+          "description": "MQTT port",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 1883
+        },
+        "device_id": {
+          "type": "string",
+          "description": "Unique device identifier",
+          "default": "sensor-001"
+        },
+        "poll_interval": {
+          "type": "integer",
+          "description": "Polling interval in seconds",
+          "minimum": 1,
+          "maximum": 3600,
+          "default": 5
+        }
+      }
+    }

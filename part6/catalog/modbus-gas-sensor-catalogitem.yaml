@@ -1,0 +1,123 @@
+apiVersion: flightctl.io/v1alpha1
+kind: CatalogItem
+metadata:
+  name: modbus-gas-sensor
+  catalog: rtu-iiot
+  labels:
+    category: sensors
+    protocol: modbus
+spec:
+  type: container
+  displayName: Modbus Gas Flow Sensor Simulator
+  shortDescription: Simulates RS485/Modbus gas flow sensor with DP, SP, and temperature measurements
+  provider: RTU
+  category: application
+  
+  readme: |
+    # Modbus Gas Flow Sensor Simulator
+    
+    ## Overview
+    This application simulates an industrial gas flow sensor connected via Modbus TCP protocol.
+    It measures three critical parameters for gas flow calculation:
+    
+    ### Measured Parameters
+    - **Differential Pressure (DP)**: Pressure drop across orifice plate (0-1000 Pa)
+    - **Static Pressure (SP)**: Absolute gas pressure for volume correction (95-110 kPa)
+    - **Temperature (T)**: Gas temperature for density correction (-10 to 60°C)
+    - **Gas Flow**: Calculated flow rate (m³/h) using ISO 5167 orifice plate formula
+    
+    ### Modbus TCP Interface
+    - **Port**: 502
+    - **Protocol**: Modbus TCP (Ethernet)
+    - **Slave ID**: 1
+    
+    ### Register Map
+    | Register | Parameter | Unit | Format |
+    |----------|-----------|------|--------|
+    | 100 | Differential Pressure | Pa | int16 (×100) |
+    | 101 | Static Pressure | Pa | int16 (×10) |
+    | 102 | Temperature | °C | int16 (×100) |
+    | 103 | Gas Flow | m³/h | int16 (×100) |
+    
+    ### Configuration
+    Edit `config.yaml` to adjust:
+    - Initial sensor values (DP, SP, Temperature)
+    - Orifice plate parameters (diameter, discharge coefficient)
+    - Server host and port
+    
+    ### Formula Used
+    ```
+    Q = C × A × √(2 × DP / ρ)
+    
+    where:
+      Q = Flow rate (m³/s)
+      C = Discharge coefficient (0.61 for sharp-edged orifice)
+      A = Orifice area (m²)
+      DP = Differential pressure (Pa)
+      ρ = Gas density (kg/m³), calculated from SP and T
+    ```
+  
+  artifacts:
+    - type: container
+      uri: quay.io/luferrar/rtu-modbus-gas-sensor
+  
+  versions:
+    - version: "1.0.0"
+      channels:
+        - stable
+      references:
+        container: "1.0.0"
+  
+  config:
+    env:
+      - name: MODBUS_PORT
+        value: "502"
+      - name: LOG_LEVEL
+        value: "INFO"
+    
+    ports:
+      - containerPort: 502
+        name: modbus-tcp
+        protocol: TCP
+    
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"
+  
+  configSchema: |
+    {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "initial_dp": {
+          "type": "number",
+          "description": "Initial Differential Pressure in Pa",
+          "minimum": 0,
+          "maximum": 1000,
+          "default": 50
+        },
+        "initial_sp": {
+          "type": "number",
+          "description": "Initial Static Pressure in Pa",
+          "minimum": 95000,
+          "maximum": 110000,
+          "default": 101325
+        },
+        "initial_temp": {
+          "type": "number",
+          "description": "Initial Temperature in Celsius",
+          "minimum": -10,
+          "maximum": 60,
+          "default": 20
+        },
+        "orifice_diameter": {
+          "type": "number",
+          "description": "Orifice diameter in meters",
+          "default": 0.05
+        }
+      }
+    }

@@ -1,0 +1,169 @@
+apiVersion: flightctl.io/v1alpha1
+kind: CatalogItem
+metadata:
+  name: mosquitto-broker
+  catalog: rtu-iiot
+  labels:
+    category: infrastructure
+    protocol: mqtt
+spec:
+  type: container
+  displayName: Mosquitto MQTT Broker
+  shortDescription: Lightweight, open-source MQTT message broker for IoT communications
+  provider: Eclipse Mosquitto
+  category: application
+  
+  readme: |
+    # Mosquitto MQTT Broker
+    
+    ## Overview
+    Mosquitto is a popular open-source message broker that implements the MQTT protocol.
+    It is lightweight, reliable, and ideal for IoT and edge computing environments.
+    
+    ## Key Features
+    - **MQTT Protocol**: Full MQTT 3.1.1 and 5.0 support
+    - **Lightweight**: Minimal resource footprint
+    - **Scalable**: Handles thousands of concurrent connections
+    - **Persistence**: Optional message persistence
+    - **WebSocket Support**: For browser-based clients
+    - **TLS/SSL Support**: Secure encrypted communications
+    
+    ## Connectivity
+    - **Port 1883**: Standard MQTT protocol
+    - **Port 8883**: MQTT over TLS/SSL
+    - **Port 9001**: MQTT over WebSockets
+    
+    ## Configuration
+    The broker is configured via `mosquitto.conf`:
+    - Authentication: Currently set to anonymous (modify for production)
+    - Persistence: Enabled at `/mosquitto/data/`
+    - Logging: Both file and stdout
+    - Message queue: Max 1000 queued messages
+    
+    ## Data Directories
+    - `/mosquitto/data/`: Persistent message storage
+    - `/mosquitto/log/`: Log files
+    - `/mosquitto/config/`: Configuration files
+    - `/mosquitto/certs/`: TLS certificates (optional)
+    
+    ## Production Recommendations
+    1. **Authentication**: Enable username/password authentication
+    2. **TLS/SSL**: Configure certificates for secure communication
+    3. **Topic ACL**: Implement topic access control lists (ACL)
+    4. **Persistence**: Configure appropriate retention policies
+    5. **Monitoring**: Enable logging and set up alerts
+    6. **Resource Limits**: Set appropriate memory and connection limits
+    
+    ## Example MQTT Commands
+    
+    ### Subscribe to a topic
+    ```bash
+    mosquitto_sub -h mqtt-broker -t 'rtu/sensor/sensor-001/#' -v
+    ```
+    
+    ### Publish a message
+    ```bash
+    mosquitto_pub -h mqtt-broker -t 'rtu/test' -m 'Hello MQTT'
+    ```
+    
+    ### Using with TLS
+    ```bash
+    mosquitto_sub -h mqtt-broker -p 8883 \
+      --cafile ca.crt \
+      --cert client.crt \
+      --key client.key \
+      -t 'rtu/sensor/#'
+    ```
+    
+    ## Performance Tuning
+    - Adjust `max_connections` for higher throughput
+    - Configure `max_queued_messages` based on QoS requirements
+    - Enable persistence only if data durability is needed
+    - Monitor memory usage with `docker stats`
+  
+  artifacts:
+    - type: container
+      uri: docker.io/eclipse-mosquitto
+  
+  versions:
+    - version: "2.0.15"
+      channels:
+        - stable
+      references:
+        container: "2.0.15"
+    
+    - version: "2.0.18"
+      channels:
+        - stable
+        - candidate
+      references:
+        container: "2.0.18"
+      replaces: "2.0.15"
+  
+  config:
+    ports:
+      - containerPort: 1883
+        name: mqtt
+        protocol: TCP
+      - containerPort: 8883
+        name: mqtt-tls
+        protocol: TCP
+      - containerPort: 9001
+        name: mqtt-websocket
+        protocol: TCP
+    
+    volumes:
+      - name: data
+        mountPath: /mosquitto/data
+      - name: logs
+        mountPath: /mosquitto/log
+      - name: config
+        mountPath: /mosquitto/config
+    
+    env:
+      - name: TZ
+        value: "UTC"
+    
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "1000m"
+  
+  configSchema: |
+    {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "allow_anonymous": {
+          "type": "boolean",
+          "description": "Allow anonymous MQTT connections",
+          "default": true
+        },
+        "max_connections": {
+          "type": "integer",
+          "description": "Maximum concurrent connections (-1 for unlimited)",
+          "minimum": -1,
+          "default": -1
+        },
+        "max_queued_messages": {
+          "type": "integer",
+          "description": "Maximum queued messages per client",
+          "minimum": 1,
+          "default": 1000
+        },
+        "persistence": {
+          "type": "boolean",
+          "description": "Enable message persistence",
+          "default": true
+        },
+        "max_keepalive": {
+          "type": "integer",
+          "description": "Maximum keep-alive interval in seconds",
+          "minimum": 1,
+          "default": 60
+        }
+      }
+    }
