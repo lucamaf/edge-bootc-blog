@@ -7,20 +7,20 @@
 # realistic ROS2 workload conditions.
 #
 # Usage: ./test-with-load.sh [test_duration] [load_type] [load_intensity]
-#   test_duration: Duration in hours (default: 1)
+#   test_duration: Duration with unit: 1h, 60m, 3600s (default: 1h)
 #   load_type: cpu, memory, io, or combined (default: combined)
 #   load_intensity: 1-4, higher = more intense (default: 2)
 #
 # Examples:
-#   ./test-with-load.sh 1 cpu 2
-#   ./test-with-load.sh 2 combined 3
+#   ./test-with-load.sh 1h cpu 2
+#   ./test-with-load.sh 2h combined 3
 #
 ################################################################################
 
 set -e
 
 # Configuration
-TEST_DURATION="${1:-1}h"
+TEST_DURATION="${1:-1h}"
 LOAD_TYPE="${2:-combined}"
 LOAD_INTENSITY="${3:-2}"
 
@@ -126,7 +126,7 @@ sleep 2
 echo -e "${GREEN}Starting cyclictest...${NC}"
 
 # Run cyclictest
-if ../run-cyclictest.sh 1 200; then
+if ../run-cyclictest.sh "$TEST_DURATION" 200; then
     echo -e "${GREEN}✓ Cyclictest completed${NC}"
 else
     echo -e "${RED}✗ Cyclictest failed${NC}"

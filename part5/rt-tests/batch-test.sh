@@ -8,12 +8,12 @@
 #
 # Usage: ./batch-test.sh [num_iterations] [duration_per_test] [test_name]
 #   num_iterations: Number of test runs (default: 5)
-#   duration_per_test: Duration of each test in hours (default: 1)
+#   duration_per_test: Duration with unit: 1h, 60m, 3600s (default: 1h)
 #   test_name: Descriptive name for results directory (default: batch_TIMESTAMP)
 #
 # Example:
-#   ./batch-test.sh 5 1 baseline
-#   ./batch-test.sh 10 2 ros2_loaded
+#   ./batch-test.sh 5 1h baseline
+#   ./batch-test.sh 10 2h ros2_loaded
 #
 ################################################################################
 
@@ -21,7 +21,7 @@ set -e
 
 # Configuration
 NUM_ITERATIONS="${1:-5}"
-DURATION_PER_TEST="${2:-1}h"
+DURATION_PER_TEST="${2:-1h}"
 TEST_NAME="${3:-batch_$(date +%Y%m%d_%H%M%S)}"
 
 # Colors
@@ -56,11 +56,8 @@ for i in $(seq 1 $NUM_ITERATIONS); do
     echo -e "${BLUE}=== Test $i of $NUM_ITERATIONS ===${NC}"
     echo "Running cyclictest for $DURATION_PER_TEST..."
     
-    # Extract duration number
-    DURATION_NUM=$(echo $DURATION_PER_TEST | sed 's/[^0-9]//g')
-    
     # Run cyclictest
-    if ./run-cyclictest.sh "$DURATION_NUM" 200; then
+    if ./run-cyclictest.sh "$DURATION_PER_TEST" 200; then
         # Move results to batch directory
         mv cyclictest_output.txt "$TEST_NAME/test_${i}_output.txt"
         mv cyclictest_results.txt "$TEST_NAME/test_${i}_results.txt"

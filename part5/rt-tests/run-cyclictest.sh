@@ -9,8 +9,8 @@
 # Based on: https://github.com/ros-realtime/ros_realtime_benchmarks_config
 # Adapted for RHEL 9 Real-Time
 #
-# Usage: ./run-cyclictest.sh [duration_hours] [interval_us]
-#   duration_hours: Test duration in hours (default: 1)
+# Usage: ./run-cyclictest.sh [duration] [interval_us]
+#   duration: Test duration with unit: 1h, 60m, 3600s (default: 1h)
 #   interval_us: Timer interval in microseconds (default: 200)
 #
 ################################################################################
@@ -18,7 +18,7 @@
 set -e
 
 # Configuration
-DURATION="${1:-1}h"
+DURATION="${1:-1h}"
 INTERVAL="${2:-200}"
 OUTPUT_FILE="cyclictest_output.txt"
 RESULTS_FILE="cyclictest_results.txt"
