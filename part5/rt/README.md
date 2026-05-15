@@ -1,4 +1,4 @@
-# Real-Time Bootc Container (Containerfile2)
+# Real-Time Bootc Container
 
 ## Overview
 
@@ -100,8 +100,4 @@ This image is optimized for:
 - IRQbalance is disabled to prevent automatic CPU affinity changes
 - The actual tuned profile application happens on the first boot after device deployment
 
----
 
-**Base Image**: `quay.io/luferrar/part5:device001`
-
-**Output Image**: `quay.io/luferrar/part5:device002`

@@ -1,0 +1,11 @@
+# Adding gnuplot
+# This image will be tagged as quay.io/luferrar/part5:device004rt
+FROM quay.io/luferrar/part5:device003rt
+
+# enable tailscale port 
+RUN dnf -y upgrade && \
+    dnf -y install gnuplot && \
+    dnf clean all
+
+# Lint the build
+RUN bootc container lint
