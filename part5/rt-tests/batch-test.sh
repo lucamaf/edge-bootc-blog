@@ -56,18 +56,20 @@ for i in $(seq 1 $NUM_ITERATIONS); do
     echo -e "${BLUE}=== Test $i of $NUM_ITERATIONS ===${NC}"
     echo "Running cyclictest for $DURATION_PER_TEST..."
     
-    # Run cyclictest
-    if ./run-cyclictest.sh "$DURATION_PER_TEST" 200; then
-        # Move results to batch directory
-        mv cyclictest_output.txt "$TEST_NAME/test_${i}_output.txt"
-        mv cyclictest_results.txt "$TEST_NAME/test_${i}_results.txt"
-        mv cyclictest_histogram.txt "$TEST_NAME/test_${i}_histogram.txt"
+    # Run cyclictest (will create test00N inside TEST_NAME directory)
+    if (cd "$TEST_NAME" && ../../run-cyclictest.sh "$DURATION_PER_TEST" 200); then
+        # Get the most recently created test directory
+        TEST_RESULT_DIR="$TEST_NAME/$(ls -td test[0-9][0-9][0-9] 2>/dev/null | head -1)"
         
-        # Extract max latency
-        MAX_LAT=$(grep "Max Latencies" "$TEST_NAME/test_${i}_results.txt" 2>/dev/null | tr " " "\n" | sort -n | tail -1 | sed 's/^0*//;s/.*\([0-9]\{1,\}\).*/\1/' || echo "0")
-        LATENCIES+=($MAX_LAT)
-        
-        echo -e "${GREEN}✓ Test $i completed (max: ${MAX_LAT}us)${NC}"
+        if [ -d "$TEST_RESULT_DIR" ]; then
+            # Extract max latency
+            MAX_LAT=$(grep "Max Latencies" "$TEST_RESULT_DIR/cyclictest_results.txt" 2>/dev/null | tr " " "\n" | sort -n | tail -1 | sed 's/^0*//;s/.*\([0-9]\{1,\}\).*/\1/' || echo "0")
+            LATENCIES+=($MAX_LAT)
+            
+            echo -e "${GREEN}✓ Test $i completed in: $TEST_RESULT_DIR (max: ${MAX_LAT}us)${NC}"
+        else
+            echo -e "${RED}✗ Test $i: Could not find results directory${NC}"
+        fi
     else
         echo -e "${RED}✗ Test $i failed${NC}"
     fi
@@ -124,7 +126,8 @@ fi
 
 # Generate comparison plot (analyze first test as baseline)
 echo -e "${GREEN}Generating baseline plot...${NC}"
-if ./analyze-results.sh "$TEST_NAME/test_1_histogram.txt"; then
+FIRST_TEST="$TEST_NAME/$(ls -td test[0-9][0-9][0-9] 2>/dev/null | tail -1)"
+if [ -d "$FIRST_TEST" ] && ./analyze-results.sh "$FIRST_TEST/cyclictest_histogram.txt" > /dev/null 2>&1; then
     mv latency_plot.png "$TEST_NAME/baseline_latency_plot.png"
     echo "  ✓ Baseline plot: $TEST_NAME/baseline_latency_plot.png"
 fi
@@ -132,21 +135,21 @@ fi
 echo ""
 echo -e "${GREEN}Results Summary:${NC}"
 echo "  Results directory: $TEST_NAME/"
-echo "  Files generated:"
+echo "  Test folders created:"
 
-ls -1 "$TEST_NAME/" | while read file; do
-    SIZE=$(ls -lh "$TEST_NAME/$file" | awk '{print $5}')
-    echo "    - $file ($SIZE)"
+ls -1d "$TEST_NAME"/test[0-9][0-9][0-9] 2>/dev/null | while read dir; do
+    SIZE=$(du -sh "$dir" 2>/dev/null | awk '{print $1}')
+    echo "    - $(basename $dir) ($SIZE)"
 done
 
 echo ""
 echo -e "${GREEN}Next Steps:${NC}"
 echo ""
 echo "1. Review individual results:"
-echo "   head -20 $TEST_NAME/test_1_results.txt"
+echo "   head -20 $TEST_NAME/test001/cyclictest_results.txt"
 echo ""
-echo "2. Compare all results:"
-echo "   for f in $TEST_NAME/test_*_results.txt; do"
+echo "2. Compare all test results:"
+echo "   for f in $TEST_NAME/test*/cyclictest_results.txt; do"
 echo "     echo \"=== \$f ===\""
 echo "     head -3 \"\$f\""
 echo "   done"
@@ -154,17 +157,8 @@ echo ""
 echo "3. View baseline plot:"
 echo "   display $TEST_NAME/baseline_latency_plot.png"
 echo ""
-echo "4. Create detailed comparison report:"
-echo "   cat > compare_tests.sh << 'EOF'"
-echo "   #!/bin/bash"
-echo "   for f in $TEST_NAME/test_*_results.txt; do"
-echo "     echo \"Test: \$f\""
-echo "     grep -E 'Max|Avg' \"\$f\" | head -5"
-echo "     echo \"\""
-echo "   done"
-echo "   EOF"
-echo "   chmod +x compare_tests.sh"
-echo "   ./compare_tests.sh"
+echo "4. List all test directories:"
+echo "   ls -lh $TEST_NAME/test*/"
 echo ""
 
 echo -e "${GREEN}========================================${NC}"

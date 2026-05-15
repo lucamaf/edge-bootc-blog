@@ -33,12 +33,21 @@ NC='\033[0m' # No Color
 
 # Timestamp for uniqueness
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-TEST_NAME="test_${LOAD_TYPE}_${TIMESTAMP}"
+PARENT_DIR="load_test_${LOAD_TYPE}_${TIMESTAMP}"
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Cyclictest Under Load${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
+echo "Parent Directory: $PARENT_DIR/"
+echo "Configuration:"
+echo "  Duration: $TEST_DURATION"
+echo "  Load Type: $LOAD_TYPE"
+echo "  Intensity: $LOAD_INTENSITY/4"
+echo ""
+
+# Create parent directory
+mkdir -p "$PARENT_DIR"
 
 # Check if stress-ng is available (recommended but not required)
 STRESS_AVAILABLE=0
@@ -108,9 +117,8 @@ fi
 
 echo ""
 
-# Create test directory
-mkdir -p "$TEST_NAME"
-cd "$TEST_NAME"
+# Change to parent directory
+cd "$PARENT_DIR"
 
 echo -e "${GREEN}Starting load generation in background...${NC}"
 
@@ -125,7 +133,7 @@ sleep 2
 
 echo -e "${GREEN}Starting cyclictest...${NC}"
 
-# Run cyclictest
+# Run cyclictest (from parent directory context)
 if ../run-cyclictest.sh "$TEST_DURATION" 200; then
     echo -e "${GREEN}✓ Cyclictest completed${NC}"
 else
@@ -149,18 +157,21 @@ sleep 1
 echo ""
 echo -e "${GREEN}Analyzing results...${NC}"
 
-# Analyze results
-if ../analyze-results.sh; then
+# Analyze results from the test directory
+TEST_RESULT_DIR="$(ls -td test[0-9][0-9][0-9] 2>/dev/null | head -1)"
+if [ -d "$TEST_RESULT_DIR" ] && ../analyze-results.sh "$TEST_RESULT_DIR/cyclictest_histogram.txt" > /dev/null 2>&1; then
+    mv latency_plot.png "$TEST_RESULT_DIR/latency_plot.png"
     echo -e "${GREEN}✓ Analysis complete${NC}"
 fi
 
 echo ""
 echo -e "${GREEN}Test Results:${NC}"
-echo "  Directory: $TEST_NAME/"
-echo "  Raw output: $TEST_NAME/cyclictest_output.txt"
-echo "  Results: $TEST_NAME/cyclictest_results.txt"
-echo "  Histogram: $TEST_NAME/cyclictest_histogram.txt"
-echo "  Plot: $TEST_NAME/latency_plot.png"
+echo "  Parent Directory: $PARENT_DIR/"
+echo "  Test Folder: $PARENT_DIR/$TEST_RESULT_DIR/"
+echo "  Raw output: $PARENT_DIR/$TEST_RESULT_DIR/cyclictest_output.txt"
+echo "  Results: $PARENT_DIR/$TEST_RESULT_DIR/cyclictest_results.txt"
+echo "  Histogram: $PARENT_DIR/$TEST_RESULT_DIR/cyclictest_histogram.txt"
+echo "  Plot: $PARENT_DIR/$TEST_RESULT_DIR/latency_plot.png"
 echo ""
 
 # Go back to original directory
@@ -173,12 +184,12 @@ echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "${GREEN}To compare with baseline:${NC}"
 echo "  # Review results"
-echo "  head -20 $TEST_NAME/cyclictest_results.txt"
+echo "  head -20 $PARENT_DIR/$TEST_RESULT_DIR/cyclictest_results.txt"
 echo ""
 echo "  # View plot"
-echo "  display $TEST_NAME/latency_plot.png"
+echo "  display $PARENT_DIR/$TEST_RESULT_DIR/latency_plot.png"
 echo ""
 echo -e "${GREEN}To run another test:${NC}"
-echo "  ./test-with-load.sh 1 cpu 2"
-echo "  ./test-with-load.sh 1 memory 3"
-echo "  ./test-with-load.sh 1 combined 4"
+echo "  ./test-with-load.sh 1h cpu 2"
+echo "  ./test-with-load.sh 1h memory 3"
+echo "  ./test-with-load.sh 1h combined 4"

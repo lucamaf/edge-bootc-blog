@@ -20,9 +20,30 @@ set -e
 # Configuration
 DURATION="${1:-1h}"
 INTERVAL="${2:-200}"
-OUTPUT_FILE="cyclictest_output.txt"
-RESULTS_FILE="cyclictest_results.txt"
-HISTOGRAM_FILE="cyclictest_histogram.txt"
+
+# Find the next test number
+find_next_test_number() {
+    local max_num=0
+    for dir in test[0-9][0-9][0-9] test[0-9][0-9][0-9]_*; do
+        if [ -d "$dir" ] 2>/dev/null; then
+            # Extract number from directory name (first 6 chars after "test")
+            local num=$(echo "$dir" | grep -o '^test[0-9]*' | sed 's/test//')
+            if [ -n "$num" ] && [ "$num" -gt "$max_num" ]; then
+                max_num=$num
+            fi
+        fi
+    done
+    echo $((max_num + 1))
+}
+
+TEST_NUM=$(find_next_test_number)
+TEST_DIR=$(printf "test%03d" $TEST_NUM)
+OUTPUT_FILE="$TEST_DIR/cyclictest_output.txt"
+RESULTS_FILE="$TEST_DIR/cyclictest_results.txt"
+HISTOGRAM_FILE="$TEST_DIR/cyclictest_histogram.txt"
+
+# Create test directory
+mkdir -p "$TEST_DIR"
 
 # Colors for output
 RED='\033[0;31m'
@@ -47,10 +68,11 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}ROS2 Cyclictest Latency Measurement${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
+echo "Test Number: $TEST_DIR"
 echo "Configuration:"
 echo "  Duration: $DURATION"
 echo "  Interval: ${INTERVAL}us"
-echo "  Output: $OUTPUT_FILE"
+echo "  Output Directory: $TEST_DIR/"
 echo ""
 
 # Get system info
@@ -123,15 +145,18 @@ echo ""
 
 echo -e "${GREEN}Next Steps:${NC}"
 echo "  1. Analyze and plot results:"
-echo "     ./analyze-results.sh"
+echo "     ./analyze-results.sh $TEST_DIR/cyclictest_histogram.txt"
 echo ""
 echo "  2. View detailed results:"
-echo "     head -30 $RESULTS_FILE"
+echo "     head -30 $TEST_DIR/cyclictest_results.txt"
 echo ""
-echo "  3. Compare with other runs:"
-echo "     diff <(head -10 $RESULTS_FILE) <(head -10 previous_results.txt)"
+echo "  3. View all test results:"
+echo "     ls -lh test*/"
+echo ""
+echo "  4. Compare tests:"
+echo "     diff <(head -10 $TEST_DIR/cyclictest_results.txt) <(head -10 test001/cyclictest_results.txt)"
 echo ""
 
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}Cyclictest measurement complete${NC}"
+echo -e "${GREEN}Results saved in: $TEST_DIR/${NC}"
 echo -e "${GREEN}========================================${NC}"
