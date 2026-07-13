@@ -1,9 +1,9 @@
 # Adding gnuplot
-# This image will be tagged as quay.io/luferrar/part5:device004rt
+# This image will be tagged as quay.io/luferrar/part5:device005rt
 FROM quay.io/luferrar/part5:device003rt
 
-# upgrade and install gnuplot
-RUN dnf -y upgrade && \
+# upgrade (exluding flightctl packages) and install gnuplot
+RUN dnf -y upgrade --exclude=flightctl* && \
     dnf -y install gnuplot && \
     dnf clean all
 
