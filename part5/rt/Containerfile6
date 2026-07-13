@@ -2,9 +2,13 @@
 # This image will be tagged as quay.io/luferrar/part5:device004rt
 FROM quay.io/luferrar/part5:device003rt
 
-# enable tailscale port 
+# upgrade and install gnuplot
 RUN dnf -y upgrade && \
     dnf -y install gnuplot && \
+    dnf clean all
+
+# adding greenboot packages
+RUN dnf -y install greenboot greenboot-default-health-checks && \
     dnf clean all
 
 # Lint the build
