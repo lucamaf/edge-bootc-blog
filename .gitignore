@@ -23,3 +23,6 @@ Plugfest/
 
 output/
 *xentara*
+
+# test flightctl
+device-patches/

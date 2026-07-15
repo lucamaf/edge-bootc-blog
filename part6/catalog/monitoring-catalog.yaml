@@ -1,0 +1,12 @@
+apiVersion: flightctl.io/v1alpha1
+kind: Catalog
+metadata:
+  name: monitoring
+  labels:
+    team: platform
+    purpose: observability
+spec:
+  displayName: Monitoring
+  shortDescription: Monitoring and observability agents for edge devices
+  provider: Beszel
+  support: https://github.com/luferrar/edge-bootc-blog/issues

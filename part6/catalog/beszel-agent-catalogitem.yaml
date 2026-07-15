@@ -1,0 +1,114 @@
+apiVersion: flightctl.io/v1alpha1
+kind: CatalogItem
+metadata:
+  name: beszel-agent
+  catalog: monitoring
+  labels:
+    category: monitoring
+    protocol: beszel
+spec:
+  type: container
+  displayName: Beszel Agent
+  shortDescription: Lightweight system monitoring agent that reports metrics to a Beszel hub
+  provider: Beszel
+  category: application
+
+  artifacts:
+    - type: container
+      uri: docker.io/henrygd/beszel-agent
+
+  versions:
+    - version: "0.18.7"
+      channels:
+        - stable
+      references:
+        container: "0.18.7"
+      readme: |
+        # Beszel Agent
+
+        ## Overview
+        Beszel Agent is a lightweight system monitoring agent that collects host and
+        container metrics and reports them to a central Beszel hub over an SSH tunnel.
+
+        ## Key Features
+        - Minimal resource footprint
+        - Reports CPU, memory, disk, and network metrics
+        - Docker/Podman container stats via the container engine socket
+        - Authenticates to the hub using an SSH keypair
+
+        ## Networking
+        This agent is designed to run with **host networking** so the hub can reach it
+        directly on the `LISTEN` port, and so it can see the host's real network
+        interfaces. The generic `config` schema used by this catalog only supports
+        publishing bridge-style `host:container` ports, so host networking must be
+        configured at the Fleet/Application deployment level rather than in this
+        CatalogItem.
+
+        ## Required Volumes
+        - `docker-sock` → `/var/run/docker.sock` (read-only): grants access to the
+          container engine socket for collecting per-container stats. Bind this to the
+          host's `/var/run/docker.sock` (or the Podman equivalent) when deploying.
+        - `data` → `/var/lib/beszel-agent`: persistent agent state.
+
+        ## Environment Variables
+        - `KEY`: SSH public key the hub uses to authenticate this agent
+        - `LISTEN`: port the agent listens on for hub connections (default 45876)
+        - `TOKEN`: registration token issued by the Beszel hub
+        - `HUB_URL`: URL of the Beszel hub this agent reports to
+
+        ## Original reference command
+        ```bash
+        docker run -d --name beszel-agent --network host --restart unless-stopped \
+          -v /var/run/docker.sock:/var/run/docker.sock:ro \
+          -v beszel_agent_data:/var/lib/beszel-agent \
+          -e KEY="<hub-ssh-public-key>" \
+          -e LISTEN=45876 \
+          -e TOKEN="<hub-registration-token>" \
+          -e HUB_URL="http://<hub-host>:8090" \
+          henrygd/beszel-agent
+        ```
+
+  defaults:
+    config:
+      envVars:
+        KEY: "ssh-PUBLIC-KEY"
+        LISTEN: "45876"
+        TOKEN: "HUB-REGISTRATION-TOKEN"
+        HUB_URL: "http://192.168.1.116:8090"
+
+      resources:
+        requests:
+          memory: "32m"
+          cpu: "0.05"
+        limits:
+          memory: "128m"
+          cpu: "0.5"
+
+      volumes:
+        - name: docker-sock
+          mount:
+            path: /var/run/docker.sock
+        - name: data
+          mount:
+            path: /var/lib/beszel-agent
+
+    configSchema:
+      $schema: "http://json-schema.org/draft-07/schema#"
+      type: object
+      properties:
+        key:
+          type: string
+          description: SSH public key used by the Beszel hub to authenticate this agent
+        listen:
+          type: integer
+          description: Port the Beszel agent listens on for hub connections
+          minimum: 1
+          maximum: 65535
+          default: 45876
+        token:
+          type: string
+          description: Registration token issued by the Beszel hub
+        hub_url:
+          type: string
+          description: URL of the Beszel hub this agent reports to
+          default: "http://192.168.1.116:8090"
