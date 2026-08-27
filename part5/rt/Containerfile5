@@ -2,7 +2,6 @@
 # This image will be tagged as quay.io/luferrar/part5:device003rt
 FROM quay.io/luferrar/part5:device002rt
 
-# enable tailscale port 
 RUN dnf -y upgrade && \
     dnf clean all
 

@@ -1,8 +1,8 @@
-# Adding gnuplot & updating flightctl agent to 1.2.0
+# Adding gnuplot & updating flightctl agent
 # This image will be tagged as quay.io/luferrar/part5:device006rt
 FROM quay.io/luferrar/part5:device003rt
 
-# upgrade (exluding flightctl packages) and install gnuplot
+# upgrade and install gnuplot
 RUN dnf -y upgrade  && \
     dnf -y install gnuplot && \
     dnf clean all

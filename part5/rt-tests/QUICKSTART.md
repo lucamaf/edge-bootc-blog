@@ -99,7 +99,7 @@ Poor:    Broad distribution, long tail extending high
       ██░░░░░░░░░░░
 ```
 
-### Target Values (RHEL 9 RT Kernel)
+### Target Values (RHEL 10 RT Kernel)
 - **Idle System**: 20-50 μs
 - **Light Load**: 50-100 μs
 - **Medium Load**: 100-200 μs
@@ -213,7 +213,7 @@ Edit the plot parameters in analyze-results.sh to change X-axis range:
 
 ## Performance Optimization Tips
 
-1. **Isolate CPUs**: Already configured in Containerfile2
+1. **Isolate CPUs**: Already configured in Containerfile7
    ```bash
    cat /proc/cmdline | grep -o 'isolcpus=[^ ]*'
    ```
@@ -258,4 +258,4 @@ For issues with:
 ---
 
 **Last Updated**: May 15, 2026
-**Tested On**: RHEL 9 with RT kernel (part5 bootc container)
+**Tested On**: RHEL 10 with RT kernel (part5 bootc container)

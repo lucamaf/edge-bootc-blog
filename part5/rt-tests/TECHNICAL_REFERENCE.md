@@ -151,9 +151,9 @@ Poor Distribution (Problematic System):
        0   20   50  100  200+ μs
 ```
 
-## RHEL 9 Real-Time Kernel
+## RHEL 10 Real-Time Kernel
 
-### Boot Parameters (in Containerfile2)
+### Boot Parameters (in Containerfile7)
 
 ```
 iommu=pt                    # IOMMU passthrough mode (latency improvement)
@@ -195,7 +195,7 @@ tuned-adm verify
 
 ### CPU Isolation
 
-From Containerfile2 boot parameters, specific CPUs can be isolated.
+From Containerfile7 boot parameters, specific CPUs can be isolated.
 
 **Check current isolation:**
 ```bash
@@ -208,7 +208,7 @@ cat /proc/cmdline | grep -o 'isolcpus=[^ ]*'
 - Minimizes cache misses
 - Enables CPU affinity for cyclictest
 
-## Latency Sources in RHEL 9
+## Latency Sources in RHEL 10
 
 ### Controllable Sources
 
@@ -334,7 +334,7 @@ sudo chrt -f 50 taskset -c 1-3 ros2 run your_package your_node
 
 ### RHEL Real-Time
 - Red Hat RT Documentation: https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_for_real_time/
-- RHEL Performance Tuning: https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_for_real_time/9/html/configuring_and_managing_monitoring_tools/getting-started-with-real-time_monitoring-tools
+- RHEL Performance Tuning: https://docs.redhat.com/en/documentation/red_hat_enterprise_linux_for_real_time/10
 
 ### ROS2 Real-Time
 - ROS2 Real-Time Support: https://design.ros2.org/articles/real_time_systems.html
@@ -344,4 +344,4 @@ sudo chrt -f 50 taskset -c 1-3 ros2 run your_package your_node
 
 **Technical Reference Version**: 1.0
 **Last Updated**: May 15, 2026
-**Based On**: Linux RT v6.x, RHEL 9, ROS2 Humble
+**Based On**: Linux RT v6.x, RHEL 10, ROS2 Humble

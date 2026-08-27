@@ -1,6 +1,6 @@
 # ROS2 Real-Time Latency Testing with Cyclictest
 
-This directory contains scripts and documentation for measuring real-time latency performance using cyclictest on RHEL 9, particularly for ROS2 deployments.
+This directory contains scripts and documentation for measuring real-time latency performance using cyclictest on RHEL 10, particularly for ROS2 deployments.
 
 ## Overview
 
@@ -10,13 +10,13 @@ These tools measure system latency during periodic tasks using the cyclictest ut
 
 ### System Requirements
 
-- RHEL 9 with real-time kernel (rt kernel)
+- RHEL 10 with real-time kernel (rt kernel)
 - The `realtime-tests` package (pre-installed in the container)
 - Optional: `gnuplot` for visualization
 
 ### Dependencies
 
-The rt/Containerfile2 already installs the required `realtime-tests` package which includes:
+The rt/Containerfile7 already installs the required `realtime-tests` package which includes:
 - `cyclictest` - the main latency measurement tool
 - `rteval` - real-time evaluation toolkit
 - `rtla` - real-time latency analysis tool
@@ -174,7 +174,7 @@ The generated `latency_plot.png` shows:
 
 ### CPU Isolation
 
-For best results, isolate CPUs for cyclictest using kernel boot parameters (already configured in Containerfile2):
+For best results, isolate CPUs for cyclictest using kernel boot parameters (already configured in Containerfile7):
 - `isolcpus`: Prevents kernel scheduler from using specific CPUs
 - `idle=poll`: Reduces latency from CPU idle states
 
@@ -277,7 +277,9 @@ done
 
 ### Permission issues running cyclictest
 - Use sudo for real-time priority: `sudo ./run-cyclictest.sh`
-- Or add user to realtime group: `usermod -a -G realtime $USER`
+- Or add user to realtime group: `usermod -a -G realtime $USER` (the `admin` user created by
+  kickstart is already added automatically on first boot by `realtime-group-first-boot.service` —
+  see `rt/README.md`; this manual step is only needed for other accounts)
 
 ## References
 
@@ -291,7 +293,7 @@ done
 
 When running in the bootc container (part5):
 
-1. The realtime-tests package is pre-installed via rt/Containerfile2
+1. The realtime-tests package is pre-installed via rt/Containerfile7
 2. The rt-kernel is active
 3. The realtime tuned profile is configured
 4. Real-time boot parameters are applied
@@ -309,7 +311,7 @@ cd /opt/rt-tests  # or wherever the scripts are mounted
 
 ## Performance Baselines
 
-Typical latency values for RHEL 9 RT kernel on various workloads:
+Typical latency values for RHEL 10 RT kernel on various workloads:
 
 | Workload | Peak Latency | Avg Latency |
 |----------|-------------|------------|
