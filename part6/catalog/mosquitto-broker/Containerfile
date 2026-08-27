@@ -1,7 +1,10 @@
+# tagged as quay.io/luferrar/rtu-mosquitto-broker:2.0.18
 FROM docker.io/eclipse-mosquitto:2.0.18
 
-COPY mosquitto.conf /mosquitto/config/mosquitto.conf
+COPY mosquitto.conf.template /mosquitto/config/mosquitto.conf.template
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 1883 8883 9001
 
-CMD ["mosquitto", "-c", "/mosquitto/config/mosquitto.conf"]
+ENTRYPOINT ["/entrypoint.sh"]

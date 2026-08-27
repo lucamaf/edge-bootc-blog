@@ -1,3 +1,4 @@
+# tagged as quay.io/luferrar/rtu-modbus-gas-sensor:1.0.0
 FROM registry.redhat.io/ubi9/python-311
 
 WORKDIR /app

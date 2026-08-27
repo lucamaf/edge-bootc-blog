@@ -49,13 +49,19 @@ spec:
         ```
 
         ## Configuration
-        Configure the following in `config.yaml`:
-        - `modbus.host`: Hostname or IP of Modbus device
-        - `modbus.port`: Modbus TCP port (default: 502)
-        - `mqtt.host`: Hostname or IP of MQTT broker
-        - `mqtt.port`: MQTT port (default: 1883)
-        - `device_id`: Unique device identifier
-        - `poll_interval`: Reading interval in seconds
+        The gateway reads `config.yaml` at startup; the following settings can be
+        overridden at deploy time via environment variables (set them via the catalog's
+        configurable defaults or a Fleet/Application override) without editing the image:
+        - `MODBUS_HOST`: Hostname or IP of Modbus device (default: `modbus-gas-sensor`)
+        - `MODBUS_PORT`: Modbus TCP port (default: `502`)
+        - `MQTT_HOST`: Hostname or IP of MQTT broker (default: `mosquitto-broker`)
+        - `MQTT_PORT`: MQTT port (default: `1883`)
+        - `DEVICE_ID`: Unique device identifier (default: `sensor-001`)
+        - `POLL_INTERVAL`: Reading interval in seconds (default: `5`)
+        - `LOG_LEVEL`: Logging level - DEBUG, INFO, WARN, ERROR (default: `INFO`)
+
+        The Modbus slave ID is not exposed as an environment variable; adjust it
+        directly in `config.yaml` if needed.
 
         ## Service Dependencies
         - **Modbus Gas Sensor**: Must be running and accessible
@@ -95,33 +101,84 @@ spec:
       $schema: "http://json-schema.org/draft-07/schema#"
       type: object
       properties:
-        modbus_host:
+        envVars:
+          type: object
+          title: Environment Variables
+          description: Environment variables for configuring the Modbus to MQTT gateway
+          properties:
+            MODBUS_HOST:
+              type: string
+              description: Modbus device hostname or IP address
+              default: "modbus-gas-sensor"
+              minLength: 1
+            MODBUS_PORT:
+              type: integer
+              description: Modbus TCP port
+              minimum: 1
+              maximum: 65535
+              default: 502
+            MQTT_HOST:
+              type: string
+              description: MQTT broker hostname or IP address
+              default: "mosquitto-broker"
+              minLength: 1
+            MQTT_PORT:
+              type: integer
+              description: MQTT port
+              minimum: 1
+              maximum: 65535
+              default: 1883
+            DEVICE_ID:
+              type: string
+              description: Unique device identifier
+              default: "sensor-001"
+              minLength: 1
+            POLL_INTERVAL:
+              type: integer
+              description: Polling interval in seconds
+              minimum: 1
+              maximum: 3600
+              default: 5
+            LOG_LEVEL:
+              type: string
+              description: Logging level (DEBUG, INFO, WARN, ERROR)
+              default: "INFO"
+              enum: ["DEBUG", "INFO", "WARN", "ERROR"]
+        resources:
+          type: object
+          title: Resource Requests and Limits
+          description: CPU and memory resource requests and limits for the gateway container
+          properties:
+            requests:
+              type: object
+              properties:
+                memory:
+                  type: string
+                  description: Memory request (e.g., "128m")
+                  default: "128m"
+                cpu:
+                  type: string
+                  description: CPU request (e.g., "0.1")
+                  default: "0.1"
+            limits:
+              type: object
+              properties:
+                memory:
+                  type: string
+                  description: Memory limit (e.g., "256m")
+                  default: "256m"
+                cpu:
+                  type: string
+                  description: CPU limit (e.g., "0.5")
+                  default: "0.5"
+        runAs:
           type: string
-          description: Modbus device hostname or IP address
-          default: "modbus-gas-sensor"
-        modbus_port:
-          type: integer
-          description: Modbus TCP port
-          minimum: 1
-          maximum: 65535
-          default: 502
-        mqtt_host:
-          type: string
-          description: MQTT broker hostname or IP address
-          default: "mosquitto-broker"
-        mqtt_port:
-          type: integer
-          description: MQTT port
-          minimum: 1
-          maximum: 65535
-          default: 1883
-        device_id:
-          type: string
-          description: Unique device identifier
-          default: "sensor-001"
-        poll_interval:
-          type: integer
-          description: Polling interval in seconds
-          minimum: 1
-          maximum: 3600
-          default: 5
+          title: Access & permissions
+          description: >-
+            Prevents this workload from modifying critical host operating system files.
+            We recommend keeping rootless mode enabled. Use "flightctl" for rootless
+            (recommended); use "root" to disable system integrity protection.
+          default: root
+          enum:
+            - flightctl
+            - root

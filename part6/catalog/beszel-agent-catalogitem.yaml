@@ -95,20 +95,83 @@ spec:
     configSchema:
       $schema: "http://json-schema.org/draft-07/schema#"
       type: object
+      title: Beszel Agent Configuration
+      description: Configuration options for the Beszel monitoring agent
       properties:
-        key:
+        envVars:
+          type: object
+          title: Environment Variables
+          description: Environment variables for configuring the Beszel monitoring agent
+          properties:
+            KEY:
+              type: string
+              description: SSH public key used by the Beszel hub to authenticate this agent
+            LISTEN:
+              type: integer
+              description: Port the Beszel agent listens on for hub connections
+              minimum: 1
+              maximum: 65535
+              default: 45876
+            TOKEN:
+              type: string
+              description: Registration token issued by the Beszel hub
+            HUB_URL:
+              type: string
+              description: URL of the Beszel hub this agent reports to
+              default: "http://192.168.1.116:8090"
+        resources:
+          type: object
+          title: Resource Requests and Limits
+          description: CPU and memory resource requests and limits for the agent container
+          properties:
+            requests:
+              type: object
+              properties:
+                memory:
+                  type: string
+                  description: Memory request (e.g., "32m")
+                  default: "32m"
+                cpu:
+                  type: string
+                  description: CPU request (e.g., "0.05")
+                  default: "0.05"
+            limits:
+              type: object
+              properties:
+                memory:
+                  type: string
+                  description: Memory limit (e.g., "128m")
+                  default: "128m"
+                cpu:
+                  type: string
+                  description: CPU limit (e.g., "0.5")
+                  default: "0.5"
+        volumes:
+          type: array
+          title: Volume Mounts
+          description: List of volume mounts for the Beszel agent
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                description: Name of the volume
+                default: "data"
+              mount:
+                type: object
+                properties:
+                  path:
+                    type: string
+                    description: Path where the volume is mounted in the container
+                    default: "/var/lib/beszel-agent"
+        runAs:
           type: string
-          description: SSH public key used by the Beszel hub to authenticate this agent
-        listen:
-          type: integer
-          description: Port the Beszel agent listens on for hub connections
-          minimum: 1
-          maximum: 65535
-          default: 45876
-        token:
-          type: string
-          description: Registration token issued by the Beszel hub
-        hub_url:
-          type: string
-          description: URL of the Beszel hub this agent reports to
-          default: "http://192.168.1.116:8090"
+          title: Access & permissions
+          description: >-
+            Prevents this workload from modifying critical host operating system files.
+            We recommend keeping rootless mode enabled. Use "flightctl" for rootless
+            (recommended); use "root" to disable system integrity protection.
+          default: root
+          enum:
+            - flightctl
+            - root

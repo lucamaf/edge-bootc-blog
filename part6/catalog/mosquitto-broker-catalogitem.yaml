@@ -44,11 +44,15 @@ spec:
         - **Port 9001**: MQTT over WebSockets
 
         ## Configuration
-        The broker is configured via `mosquitto.conf`:
-        - Authentication: Currently set to anonymous (modify for production)
-        - Persistence: Enabled at `/mosquitto/data/`
-        - Logging: Both file and stdout
-        - Message queue: Max 1000 queued messages
+        The broker's `mosquitto.conf` is generated at container startup from a template,
+        substituting the following environment variables (set them via the catalog's
+        configurable defaults or a Fleet/Application override):
+        - `ALLOW_ANONYMOUS`: Allow anonymous MQTT connections (default: `true`)
+        - `MAX_CONNECTIONS`: Maximum concurrent connections, `-1` for unlimited (default: `-1`)
+        - `MAX_KEEPALIVE`: Maximum keep-alive interval in seconds (default: `60`)
+        - `MAX_QUEUED_MESSAGES`: Maximum queued messages per client (default: `1000`)
+        - `PERSISTENCE`: Enable message persistence at `/mosquitto/data/` (default: `true`)
+        - `TZ`: Timezone for the container (default: `UTC`)
 
         ## Data Directories
         - `/mosquitto/data/`: Persistent message storage
@@ -104,6 +108,11 @@ spec:
     config:
       envVars:
         TZ: "UTC"
+        ALLOW_ANONYMOUS: "true"
+        MAX_CONNECTIONS: "-1"
+        MAX_KEEPALIVE: "60"
+        MAX_QUEUED_MESSAGES: "1000"
+        PERSISTENCE: "true"
 
       ports:
         - "1883:1883"
@@ -132,27 +141,98 @@ spec:
     configSchema:
       $schema: "http://json-schema.org/draft-07/schema#"
       type: object
+      title: Mosquitto Broker Configuration
+      description: Configuration options for the Mosquitto MQTT broker
       properties:
-        allow_anonymous:
-          type: boolean
-          description: Allow anonymous MQTT connections
-          default: true
-        max_connections:
-          type: integer
-          description: Maximum concurrent connections (-1 for unlimited)
-          minimum: -1
-          default: -1
-        max_queued_messages:
-          type: integer
-          description: Maximum queued messages per client
-          minimum: 1
-          default: 1000
-        persistence:
-          type: boolean
-          description: Enable message persistence
-          default: true
-        max_keepalive:
-          type: integer
-          description: Maximum keep-alive interval in seconds
-          minimum: 1
-          default: 60
+        envVars:
+          type: object
+          title: Environment Variables
+          description: Environment variables for configuring the Mosquitto broker
+          properties:
+            TZ:
+              type: string
+              description: Timezone for the broker container
+              default: "UTC"
+            ALLOW_ANONYMOUS:
+              type: boolean
+              description: Allow anonymous MQTT connections
+              default: true
+            MAX_CONNECTIONS:
+              type: integer
+              description: Maximum concurrent connections (-1 for unlimited)
+              minimum: -1
+              default: -1
+            MAX_QUEUED_MESSAGES:
+              type: integer
+              description: Maximum queued messages per client
+              minimum: 1
+              default: 1000
+            PERSISTENCE:
+              type: boolean
+              description: Enable message persistence
+              default: true
+            MAX_KEEPALIVE:
+              type: integer
+              description: Maximum keep-alive interval in seconds
+              minimum: 1
+              default: 60
+        ports:
+          type: array
+          title: Port Mappings
+          description: List of port mappings for the Mosquitto broker
+          items:
+            type: string
+            pattern: "^[0-9]+:[0-9]+$"
+            default: "1883:1883"
+        volumes:
+          type: array
+          title: Volume Mounts
+          description: List of volume mounts for persistent storage and configuration
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                description: Name of the volume
+                default: "data"
+              mount:
+                type: object
+                properties:
+                  path:
+                    type: string
+                    description: Path where the volume is mounted in the container
+                    default: "/mosquitto/data"
+        resources:
+          type: object
+          title: Resource Limits
+          description: CPU and memory resource requests and limits for the Mosquitto broker
+          properties:
+            requests:
+              type: object
+              properties:
+                memory:
+                  type: string
+                  description: Memory request (e.g., "64m")
+                cpu:
+                  type: string
+                  description: CPU request (e.g., "0.1")
+            limits:
+              type: object
+              properties:
+                memory:
+                  type: string
+                  description: Memory limit (e.g., "512m")
+                cpu:
+                  type: string
+                  description: CPU limit (e.g., "1")
+        runAs:
+          type: string
+          title: Access & permissions
+          description: >-
+            Prevents this workload from modifying critical host operating system files.
+            We recommend keeping rootless mode enabled. Use "flightctl" for rootless
+            (recommended); use "root" to disable system integrity protection.
+          default: root
+          enum:
+            - flightctl
+            - root

@@ -17,6 +17,7 @@ Modbus Map:
 """
 
 import logging
+import os
 import time
 import math
 import yaml
@@ -24,7 +25,7 @@ from pymodbus.server import AsyncModbusSerialServer, AsyncModbusTcpServer
 from pymodbus.datastore import ModbusSequentialDataBlock, ModbusSlaveContext, ModbusServerContext
 from pymodbus.device import ModbusDeviceIdentification, ModbusBasicInfo
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=os.environ.get('LOG_LEVEL', 'INFO').upper())
 logger = logging.getLogger(__name__)
 
 
@@ -88,9 +89,25 @@ class GasSensorSimulator:
 
 
 def load_config():
-    """Load configuration from config.yaml."""
+    """Load configuration from config.yaml, with environment variable overrides."""
     with open('config.yaml', 'r') as f:
-        return yaml.safe_load(f) or {}
+        config = yaml.safe_load(f) or {}
+
+    server_cfg = config.setdefault('server', {})
+    if 'MODBUS_PORT' in os.environ:
+        server_cfg['port'] = int(os.environ['MODBUS_PORT'])
+
+    sensor_cfg = config.setdefault('sensor', {})
+    if 'INITIAL_DP' in os.environ:
+        sensor_cfg['initial_dp'] = float(os.environ['INITIAL_DP'])
+    if 'INITIAL_SP' in os.environ:
+        sensor_cfg['initial_sp'] = float(os.environ['INITIAL_SP'])
+    if 'INITIAL_TEMP' in os.environ:
+        sensor_cfg['initial_temp'] = float(os.environ['INITIAL_TEMP'])
+    if 'ORIFICE_DIAMETER' in os.environ:
+        sensor_cfg['orifice_diameter'] = float(os.environ['ORIFICE_DIAMETER'])
+
+    return config
 
 
 async def update_registers(sensor, context, slave_id=1):
@@ -152,7 +169,7 @@ async def run_server():
     
     # Create and start server
     server = await AsyncModbusTcpServer(
-        ("0.0.0.0", 502),
+        (host, port),
         context=context,
         identity=identity,
     )

@@ -13,6 +13,7 @@ MQTT Topics:
 """
 
 import logging
+import os
 import time
 import json
 from datetime import datetime
@@ -22,7 +23,7 @@ from pymodbus.client import AsyncModbusTcpClient
 import asyncio
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=os.environ.get('LOG_LEVEL', 'INFO').upper(),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -179,9 +180,28 @@ class ModbusMQTTGateway:
 
 
 def load_config():
-    """Load configuration from config.yaml."""
+    """Load configuration from config.yaml, with environment variable overrides."""
     with open('config.yaml', 'r') as f:
-        return yaml.safe_load(f) or {}
+        config = yaml.safe_load(f) or {}
+
+    modbus_cfg = config.setdefault('modbus', {})
+    if 'MODBUS_HOST' in os.environ:
+        modbus_cfg['host'] = os.environ['MODBUS_HOST']
+    if 'MODBUS_PORT' in os.environ:
+        modbus_cfg['port'] = int(os.environ['MODBUS_PORT'])
+
+    mqtt_cfg = config.setdefault('mqtt', {})
+    if 'MQTT_HOST' in os.environ:
+        mqtt_cfg['host'] = os.environ['MQTT_HOST']
+    if 'MQTT_PORT' in os.environ:
+        mqtt_cfg['port'] = int(os.environ['MQTT_PORT'])
+
+    if 'DEVICE_ID' in os.environ:
+        config['device_id'] = os.environ['DEVICE_ID']
+    if 'POLL_INTERVAL' in os.environ:
+        config['poll_interval'] = int(os.environ['POLL_INTERVAL'])
+
+    return config
 
 
 async def main():
