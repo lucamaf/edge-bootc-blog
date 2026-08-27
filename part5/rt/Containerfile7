@@ -48,6 +48,15 @@ ARG RTCPU_LIST=1
 #adding in the end so that if we build image for guest and host we can use cache
 RUN sed -i "s/^isolated_cores.*/isolated_cores=${RTCPU_LIST}/" /etc/tuned/${TARGET_PROFILE}-variables.conf
 
+# rcutree.nocb_patience_delay (above) only tunes RCU callback offloading; it
+# has no effect unless rcu_nocbs actually offloads those CPUs' callbacks.
+# Without it, RCU grace-period processing can still run on the isolated
+# core(s) and preempt RT threads, causing intermittent latency spikes.
+# nohz_full (tickless mode) requires rcu_nocbs for the same CPUs to work
+# correctly, so they're set together, matching the isolated core list.
+#RUN echo -e "kargs = [\"rcu_nocbs=${RTCPU_LIST}\"]\nmatch-architectures = [\"x86_64\", \"aarch64\"]" > /usr/lib/bootc/kargs.d/06-rcu-nocbs.toml ; \
+#  echo -e "kargs = [\"nohz_full=${RTCPU_LIST}\"]\nmatch-architectures = [\"x86_64\", \"aarch64\"]" > /usr/lib/bootc/kargs.d/07-nohz-full.toml
+
 # Additional packages including graphical
 #RUN dnf -y group install GNOME && \
 RUN dnf -y install \

@@ -91,9 +91,26 @@ if ! uname -r | grep -q rt; then
     echo ""
 fi
 
+# Detect the isolated CPU(s) from the running kernel's isolcpus= karg
+# (e.g. "isolcpus=managed_irq,domain,1" -> "1"), so cyclictest actually
+# measures the protected core(s) instead of drifting onto housekeeping
+# CPUs that still handle IRQs and system tasks.
+ISOLCPUS_RAW=$(grep -o 'isolcpus=[^ ]*' /proc/cmdline | cut -d= -f2)
+ISOLATED_CPUS=$(echo "$ISOLCPUS_RAW" | sed -E 's/(^|,)(domain|managed_irq)(,|$)/\1/g; s/^,//; s/,$//')
+
+AFFINITY_ARGS=()
+if [ -n "$ISOLATED_CPUS" ]; then
+    AFFINITY_ARGS=(-a "$ISOLATED_CPUS")
+    echo "Isolated CPU(s) detected: $ISOLATED_CPUS (pinning cyclictest threads there with -a)"
+else
+    echo -e "${YELLOW}Warning: no isolcpus= found on /proc/cmdline. Running without CPU affinity —${NC}"
+    echo -e "${YELLOW}results will include non-isolated CPUs and won't reflect best-case RT latency.${NC}"
+fi
+echo ""
+
 # Start test
 echo -e "${GREEN}Starting cyclictest...${NC}"
-echo "Command: cyclictest -D $DURATION -m -Sp90 -i$INTERVAL -h400 -q"
+echo "Command: cyclictest -D $DURATION -m -Sp90 -i$INTERVAL -h400 -q ${AFFINITY_ARGS[*]}"
 echo ""
 
 # Run cyclictest
@@ -105,11 +122,9 @@ echo ""
 #   -i: Interval in microseconds (200 = 200us = 0.2ms)
 #   -h: Histogram bins (400 bins for distribution analysis)
 #   -q: Quiet mode (minimal output)
+#   -a: CPU affinity, set above from the running kernel's isolcpus= karg
 
-# Note: -a option would set CPU affinity, but we let the system handle it
-# For isolated CPUs, they're handled by kernel boot parameters in Containerfile2
-
-if cyclictest -D "$DURATION" -m -Sp90 -i"$INTERVAL" -h400 -q > "$OUTPUT_FILE" 2>&1; then
+if cyclictest -D "$DURATION" -m -Sp90 -i"$INTERVAL" -h400 -q "${AFFINITY_ARGS[@]}" > "$OUTPUT_FILE" 2>&1; then
     echo -e "${GREEN}✓ Cyclictest completed successfully${NC}"
 else
     EXIT_CODE=$?
