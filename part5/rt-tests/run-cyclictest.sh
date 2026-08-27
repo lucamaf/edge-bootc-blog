@@ -94,37 +94,67 @@ fi
 # Detect the isolated CPU(s) from the running kernel's isolcpus= karg
 # (e.g. "isolcpus=managed_irq,domain,1" -> "1"), so cyclictest actually
 # measures the protected core(s) instead of drifting onto housekeeping
-# CPUs that still handle IRQs and system tasks.
+# CPUs that still handle IRQs and system tasks. isolcpus can carry any
+# combination of the "nohz", "domain", "managed_irq" flags before the
+# actual cpu-list, so filter by keeping only numeric/range tokens rather
+# than trying to name every possible flag.
 ISOLCPUS_RAW=$(grep -o 'isolcpus=[^ ]*' /proc/cmdline | cut -d= -f2)
-ISOLATED_CPUS=$(echo "$ISOLCPUS_RAW" | sed -E 's/(^|,)(domain|managed_irq)(,|$)/\1/g; s/^,//; s/,$//')
+ISOLATED_CPUS=$(echo "$ISOLCPUS_RAW" | awk -F, '{
+    out="";
+    for (i = 1; i <= NF; i++) {
+        if ($i ~ /^[0-9]+(-[0-9]+)?$/) {
+            out = (out == "" ? $i : out "," $i);
+        }
+    }
+    print out;
+}')
 
-AFFINITY_ARGS=()
+# Count CPUs in the list (expanding ranges) so thread count (-t) matches
+# the affinity set (-a) exactly.
+count_cpu_list() {
+    local list="$1" total=0 tok lo hi
+    IFS=',' read -ra toks <<< "$list"
+    for tok in "${toks[@]}"; do
+        if [[ "$tok" == *-* ]]; then
+            lo=${tok%-*}; hi=${tok#*-}
+            total=$((total + hi - lo + 1))
+        else
+            total=$((total + 1))
+        fi
+    done
+    echo "$total"
+}
+
+# -S (SMP mode) is shorthand for "one thread per visible CPU, affinity =
+# use all" — it conflicts with an explicit -a, silently overriding it. So
+# when isolation is detected, use -a/-t explicitly instead of -S.
 if [ -n "$ISOLATED_CPUS" ]; then
-    AFFINITY_ARGS=(-a "$ISOLATED_CPUS")
-    echo "Isolated CPU(s) detected: $ISOLATED_CPUS (pinning cyclictest threads there with -a)"
+    ISOLATED_COUNT=$(count_cpu_list "$ISOLATED_CPUS")
+    CYCLICTEST_ARGS=(-a "$ISOLATED_CPUS" -t "$ISOLATED_COUNT" -p90)
+    echo "Isolated CPU(s) detected: $ISOLATED_CPUS ($ISOLATED_COUNT thread(s), pinned with -a/-t)"
 else
-    echo -e "${YELLOW}Warning: no isolcpus= found on /proc/cmdline. Running without CPU affinity —${NC}"
+    CYCLICTEST_ARGS=(-Sp90)
+    echo -e "${YELLOW}Warning: no isolcpus= found on /proc/cmdline. Running with -S (all visible CPUs) —${NC}"
     echo -e "${YELLOW}results will include non-isolated CPUs and won't reflect best-case RT latency.${NC}"
 fi
 echo ""
 
 # Start test
 echo -e "${GREEN}Starting cyclictest...${NC}"
-echo "Command: cyclictest -D $DURATION -m -Sp90 -i$INTERVAL -h400 -q ${AFFINITY_ARGS[*]}"
+echo "Command: cyclictest -D $DURATION -m -i$INTERVAL -h400 -q ${CYCLICTEST_ARGS[*]}"
 echo ""
 
 # Run cyclictest
 # Parameters explained:
 #   -D: Duration (format: 1h for 1 hour, 60m for 60 minutes, etc.)
 #   -m: Use memory locking (prevents swapping to disk)
-#   -S: Use system clock (CLOCK_SYSTIME)
-#   -p: Priority (90 is high priority for RT scheduling)
 #   -i: Interval in microseconds (200 = 200us = 0.2ms)
 #   -h: Histogram bins (400 bins for distribution analysis)
 #   -q: Quiet mode (minimal output)
-#   -a: CPU affinity, set above from the running kernel's isolcpus= karg
+#   -a/-t/-p90, or -Sp90 as fallback: set above from the running kernel's
+#     isolcpus= karg
 
-if cyclictest -D "$DURATION" -m -Sp90 -i"$INTERVAL" -h400 -q "${AFFINITY_ARGS[@]}" > "$OUTPUT_FILE" 2>&1; then
+if cyclictest -D "$DURATION" -m -i"$INTERVAL" -h400 -q "${CYCLICTEST_ARGS[@]}" > "$OUTPUT_FILE" 2>&1; then
     echo -e "${GREEN}✓ Cyclictest completed successfully${NC}"
 else
     EXIT_CODE=$?
