@@ -7,7 +7,7 @@
 # the results for later analysis.
 #
 # Based on: https://github.com/ros-realtime/ros_realtime_benchmarks_config
-# Adapted for RHEL 9 Real-Time
+# Adapted for RHEL 10 Real-Time
 #
 # Usage: ./run-cyclictest.sh [duration] [interval_us]
 #   duration: Test duration with unit: 1h, 60m, 3600s (default: 1h)
@@ -21,7 +21,7 @@ set -e
 DURATION="${1:-1h}"
 INTERVAL="${2:-200}"
 
-# Find the next test number
+# Find the next test number folder
 find_next_test_number() {
     local max_num=0
     for dir in test[0-9][0-9][0-9] test[0-9][0-9][0-9]_*; do

@@ -79,18 +79,27 @@ echo "  Number of cores: $NUM_CORES"
 if [ -z "$MAX_LATENCY" ]; then
     # Extract from results file if available
     if [ -f "cyclictest_results.txt" ]; then
-        MAX_LATENCY=$(grep "Max Latencies" cyclictest_results.txt | tr " " "\n" | sort -n | tail -1 | sed 's/^0*//;s/.*\([0-9]\{1,\}\).*/\1/')
+        MAX_LATENCY=$(grep "Max Latencies" cyclictest_results.txt | tr " " "\n" | grep -E '^0*[0-9]+$' | sort -n | tail -1)
     fi
-    
+
     # If still not found, calculate from histogram
     if [ -z "$MAX_LATENCY" ]; then
         MAX_LATENCY=$(awk '{print $1}' "$HISTOGRAM_FILE" | sort -n | tail -1)
     fi
-    
-    # Default to 400 if detection fails
-    if [ -z "$MAX_LATENCY" ] || [ "$MAX_LATENCY" -lt 50 ]; then
-        MAX_LATENCY=400
-    fi
+fi
+
+# cyclictest zero-pads latency values (e.g. "000397"), and that also applies
+# to a value passed explicitly as the 3rd argument. A leading zero makes
+# both bash arithmetic and gnuplot try to parse the number as octal, which
+# then fails as soon as an 8 or 9 shows up. Normalize to a clean base-10
+# integer before it's used in any comparison or plot.
+if [ -n "$MAX_LATENCY" ]; then
+    MAX_LATENCY=$((10#$MAX_LATENCY))
+fi
+
+# Default to 400 if detection fails
+if [ -z "$MAX_LATENCY" ] || [ "$MAX_LATENCY" -lt 50 ]; then
+    MAX_LATENCY=400
 fi
 
 echo "  Maximum latency (X-axis): ${MAX_LATENCY}us"

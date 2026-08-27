@@ -5,9 +5,16 @@
 FROM quay.io/luferrar/part5:device007rt
 
 # upgrade and install gnuplot
-RUN dnf -y upgrade  && \
+# --exclude on the plain kernel packages stops a bare "dnf upgrade" from
+# silently pulling the standard kernel back in alongside kernel-rt (nothing
+# at the RPM level prevents them being co-installed); kernel-rt-* itself is
+# still upgraded normally. The find/rm mirrors the cleanup in Containerfile7
+# as a second line of defense in case something still slips a non-rt kernel
+# directory in.
+RUN dnf -y upgrade --exclude=kernel --exclude=kernel-core --exclude=kernel-modules --exclude=kernel-modules-extra  --exclude=kernel-modules-core && \
     dnf -y install gnuplot && \
-    dnf clean all
+    dnf clean all && \
+    find /usr/lib/modules/ -mindepth 1 -maxdepth 1 -type d ! -iname '*rt*' -exec rm -rf {} +
 
 # adding greenboot packages
 RUN dnf -y install greenboot greenboot-default-health-checks && \
@@ -29,5 +36,4 @@ RUN curl -sL "https://github.com/henrygd/beszel/releases/latest/download/beszel-
 RUN systemctl disable serial-getty@ttyS1.service
 
 # Lint the build
-# known issue
-#RUN bootc container lint
+RUN bootc container lint
