@@ -28,8 +28,14 @@ find_next_test_number() {
         if [ -d "$dir" ] 2>/dev/null; then
             # Extract number from directory name (first 6 chars after "test")
             local num=$(echo "$dir" | grep -o '^test[0-9]*' | sed 's/test//')
-            if [ -n "$num" ] && [ "$num" -gt "$max_num" ]; then
-                max_num=$num
+            if [ -n "$num" ]; then
+                # Directory names are zero-padded (test008); a leading zero
+                # makes bash arithmetic try to parse it as octal, which
+                # fails on any 8 or 9. Force base-10 before comparing.
+                num=$((10#$num))
+                if [ "$num" -gt "$max_num" ]; then
+                    max_num=$num
+                fi
             fi
         fi
     done
