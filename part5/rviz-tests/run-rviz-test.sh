@@ -73,6 +73,7 @@ echo "Running as: $(id -u):$(id -g)"
 echo ""
 
 exec podman run --rm -it \
+    --userns=keep-id \
     --device nvidia.com/gpu=all \
     -e NVIDIA_DRIVER_CAPABILITIES=all \
     -e NVIDIA_VISIBLE_DEVICES=all \
