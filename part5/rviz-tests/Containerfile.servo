@@ -18,9 +18,18 @@ FROM quay.io/luferrar/part5:rviz-humble
 # rest of this list comes from reading the launch file's source directly
 # (moveit_ros/moveit_servo/launch/servo_example.launch.py) rather than
 # guessing again package by package.
+# ros-humble-moveit-ros-visualization provides the moveit_rviz_plugin/*
+# RViz plugins (PlanningScene, etc.) - without it RViz has no way to render
+# the robot's actual geometry, only whatever base rviz_default_plugins/*
+# displays (like TF axes) don't need it. Confirmed missing by the runtime
+# error: "PluginlibFactory: The plugin for class 'moveit_rviz_plugin/
+# PlanningScene' failed to load ... Declared types are rviz_default_plugins/*"
+# (zero moveit_rviz_plugin/* entries) - RViz opened and rendered fine, it
+# just had nothing MoveIt-specific to draw with.
 RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
     ros-humble-moveit-servo \
     ros-humble-moveit-resources-panda-moveit-config \
+    ros-humble-moveit-ros-visualization \
     ros-humble-controller-manager \
     ros-humble-ros2-control \
     ros-humble-ros2-controllers \
