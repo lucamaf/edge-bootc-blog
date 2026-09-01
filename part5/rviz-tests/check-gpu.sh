@@ -30,7 +30,7 @@ fi
 
 echo ""
 echo "== What to look for =="
-echo "  Good:  renderer string contains 'NVIDIA' / 'Quadro P2200'"
+echo "  Good:  renderer string contains 'NVIDIA' / 'Quadro P620'"
 echo "  Bad:   renderer string contains 'llvmpipe' (software rendering) or the"
 echo "         command fails outright (GPU/driver libs not reaching the container)"
 echo ""

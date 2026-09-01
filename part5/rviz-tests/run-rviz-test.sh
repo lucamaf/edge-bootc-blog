@@ -1,17 +1,17 @@
 #!/bin/bash
 # Launches the rviz-tests container on the HOST (the RHEL10 box with the
-# Quadro P2200), passing through the host's Wayland session and the GPU via
+# Quadro P620), passing through the host's Wayland session and the GPU via
 # the already-configured nvidia-container-toolkit/CDI setup.
 #
 # Usage:
 #   ./run-rviz-test.sh [image] -- [command...]
 #   ./run-rviz-test.sh                          # runs rviz2 (default)
-#   ./run-rviz-test.sh quay.io/luferrar/rviz-tests:humble -- check-gpu.sh
-#   ./run-rviz-test.sh quay.io/luferrar/rviz-tests:humble -- bash
+#   ./run-rviz-test.sh quay.io/luferrar/part5:rviz-humble -- check-gpu.sh
+#   ./run-rviz-test.sh quay.io/luferrar/part5:rviz-humble -- bash
 
 set -e
 
-IMAGE="quay.io/luferrar/rviz-tests:humble"
+IMAGE="quay.io/luferrar/part5:rviz-humble"
 if [ -n "$1" ] && [ "$1" != "--" ]; then
     IMAGE="$1"
     shift

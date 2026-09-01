@@ -21,8 +21,10 @@ tailscale-login.service
 #Plugfest file
 Plugfest/
 
+#pocs
 output/
 *xentara*
+lenovo-*
 
 # test flightctl
 device-patches/

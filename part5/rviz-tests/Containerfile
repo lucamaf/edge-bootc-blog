@@ -1,6 +1,6 @@
-# tagged as quay.io/luferrar/rviz-tests:humble
+# tagged as quay.io/luferrar/part5:rviz-humble
 #
-# RViz2 test container for RHEL10 + NVIDIA (Quadro P2200), GPU-accelerated via
+# RViz2 test container for RHEL10 + NVIDIA (Quadro P620), GPU-accelerated via
 # the host's nvidia-container-toolkit/CDI setup, GUI shown via Wayland
 # passthrough (see run-rviz-test.sh).
 #
@@ -46,7 +46,7 @@ RUN dnf install -y \
     && dnf clean all
 
 # Micromamba (standalone, no system python/conda needed) to install ROS2 via
-# RoboStack. This is a plain executable, not an archive.
+# RoboStack.
 ENV MAMBA_ROOT_PREFIX=/opt/conda
 RUN curl -fsSL -o /usr/local/bin/micromamba \
     https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64 \

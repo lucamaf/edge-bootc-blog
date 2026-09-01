@@ -1,7 +1,7 @@
 # RViz2 GPU Visualization Test Container
 
 A standalone application container (not a bootc OS image, unlike the rest of `part5/`) for testing
-GPU-accelerated ROS2 visualization (`rviz2`) on an x86_64 RHEL10 host with an NVIDIA Quadro P2200,
+GPU-accelerated ROS2 visualization (`rviz2`) on an x86_64 RHEL10 host with an NVIDIA Quadro P620,
 showing the GUI via Wayland passthrough into the container.
 
 ## Why RoboStack instead of RPMs
@@ -23,9 +23,11 @@ vendored Ogre build, independent of Fedora's packaging. `ros-humble-desktop` fro
 
 ## Prerequisites
 
-- RHEL10 host with the NVIDIA driver, `nvidia-container-toolkit`, and a generated CDI spec already in
-  place (this container assumes that's done — it does **not** install the NVIDIA driver itself; that's
-  injected at runtime via `--device nvidia.com/gpu=all`).
+- RHEL10 host with the NVIDIA driver working (this machine: see `lenovo-p330-nvidia-fix.md`) **and**
+  `nvidia-container-toolkit` installed with a generated CDI spec — the driver alone is not enough, and
+  as of this writing that second part still needs to be done. See `nvidia-cdi-setup.md`. This
+  container does **not** install the NVIDIA driver itself; it's injected at runtime via
+  `--device nvidia.com/gpu=all`, which has nothing to resolve against without that setup.
 - A Wayland desktop session running on the host (the launcher script needs a live
   `$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY` socket to bind-mount in).
 - `podman` new enough to support CDI devices (`--device vendor.com/device=...`).
@@ -74,7 +76,7 @@ sudo usermod -aG render,video "$USER"   # then log out and back in
 ## Build
 
 ```bash
-podman build -t quay.io/luferrar/rviz-tests:humble -f Containerfile .
+podman build -t quay.io/luferrar/part5:rviz-humble -f Containerfile .
 ```
 
 First build takes a while — the `ros-humble-desktop` conda solve/install pulls a large package set.
@@ -83,8 +85,8 @@ First build takes a while — the `ros-humble-desktop` conda solve/install pulls
 
 ```bash
 ./run-rviz-test.sh                                            # launches rviz2 (default)
-./run-rviz-test.sh quay.io/luferrar/rviz-tests:humble -- bash  # interactive shell
-./run-rviz-test.sh quay.io/luferrar/rviz-tests:humble -- check-gpu.sh
+./run-rviz-test.sh quay.io/luferrar/part5:rviz-humble -- bash  # interactive shell
+./run-rviz-test.sh quay.io/luferrar/part5:rviz-humble -- check-gpu.sh
 ```
 
 Run this from a terminal *inside* the host's Wayland session (not a bare SSH session without a
@@ -97,9 +99,9 @@ rendering, or having only XWayland (not the app itself) touch the GPU. Check bot
 
 ```bash
 # Inside the container
-./run-rviz-test.sh quay.io/luferrar/rviz-tests:humble -- check-gpu.sh
+./run-rviz-test.sh quay.io/luferrar/part5:rviz-humble -- check-gpu.sh
 ```
-Look for `NVIDIA`/`Quadro P2200` in the renderer string — `llvmpipe` means software rendering.
+Look for `NVIDIA`/`Quadro P620` in the renderer string — `llvmpipe` means software rendering.
 
 ```bash
 # On the HOST, while rviz2 is running in the container
@@ -125,7 +127,7 @@ podman run --rm -it \
     -v /etc/passwd:/etc/passwd:ro \
     --user "$(id -u):$(id -g)" \
     --security-opt label=disable \
-    quay.io/luferrar/rviz-tests:humble
+    quay.io/luferrar/part5:rviz-humble
 ```
 If that works and Wayland doesn't, it isolates the problem to the Wayland plumbing rather than
 GPU/driver/RoboStack itself.
