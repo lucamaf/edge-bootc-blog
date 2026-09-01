@@ -12,9 +12,20 @@
 # via a service call - doesn't need it.
 FROM quay.io/luferrar/part5:rviz-humble
 
+# moveit-servo/panda-moveit-config don't transitively pull in the
+# ros2_control stack servo_example.launch.py actually needs (confirmed by a
+# failed first attempt: "package 'controller_manager' not found") - the
+# rest of this list comes from reading the launch file's source directly
+# (moveit_ros/moveit_servo/launch/servo_example.launch.py) rather than
+# guessing again package by package.
 RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
     ros-humble-moveit-servo \
     ros-humble-moveit-resources-panda-moveit-config \
+    ros-humble-controller-manager \
+    ros-humble-ros2-control \
+    ros-humble-ros2-controllers \
+    ros-humble-robot-state-publisher \
+    ros-humble-joy \
     && micromamba clean -y -a \
     && chmod -R a+rX /opt/conda
 
