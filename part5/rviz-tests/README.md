@@ -30,6 +30,47 @@ vendored Ogre build, independent of Fedora's packaging. `ros-humble-desktop` fro
   `$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY` socket to bind-mount in).
 - `podman` new enough to support CDI devices (`--device vendor.com/device=...`).
 
+## Before you run this: 3 checks
+
+None of these are verified by the tooling here — they depend on the specific host, and getting them
+wrong produces confusing failures (or silent software rendering) rather than a clear error.
+
+**1. Which RDP server is actually serving the session you'll test over?**
+```bash
+systemctl status gnome-remote-desktop.service   # GNOME's built-in RDP - real Wayland session
+rpm -q xrdp                                     # traditional X11-based RDP, if installed
+```
+If it's `gnome-remote-desktop`, an RDP login spins up a real Wayland/Mutter session, so
+`$XDG_RUNTIME_DIR/wayland-0` genuinely exists and the Wayland-passthrough path below should apply the
+same as sitting at the console. If it's `xrdp`, there is no Wayland session at all — skip straight to
+the [X11 fallback](#if-wayland-passthrough-gives-you-trouble) instead, since the default script will
+fail its own precondition check (no `wayland-0` socket to find).
+
+**2. Does this host have more than one GPU (e.g. NVIDIA + integrated Intel/AMD)?**
+```bash
+lspci | grep -Ei 'vga|3d controller'
+```
+If NVIDIA is the only entry, the default Mesa/GLVND dispatch should pick it automatically — no
+changes needed. If there's also an integrated GPU, Mesa may pick the wrong one; run `check-gpu.sh`
+after starting the container and if the renderer string isn't NVIDIA, force it explicitly by adding
+`-e __GLX_VENDOR_LIBRARY_NAME=nvidia -e __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/10_nvidia.json`
+to the `podman run` invocation (adjust the path if the mounted vendor JSON lands elsewhere — check
+with `ls /usr/share/glvnd/egl_vendor.d/` inside the container).
+
+**3. Can your host user actually open the GPU device nodes without root?**
+```bash
+ls -la /dev/nvidia* /dev/dri/render*
+groups
+```
+`--device nvidia.com/gpu=all` (CDI) bind-mounts these nodes into the container with their *host*
+permissions unchanged — it doesn't grant access on its own. If they're group-owned by `render`/`video`
+and your user isn't in that group, `run-rviz-test.sh`'s non-root `--user` will get permission denied
+opening them, not a helpful error. Fix is group membership, not `sudo podman run` (that trades a
+missing-group problem for a "now everything the container writes is owned by root" one):
+```bash
+sudo usermod -aG render,video "$USER"   # then log out and back in
+```
+
 ## Build
 
 ```bash
