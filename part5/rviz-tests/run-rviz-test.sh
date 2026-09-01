@@ -36,23 +36,36 @@ if [ ! -S "/tmp/.X11-unix/X${DISPLAY#:}" ]; then
 fi
 
 # Container connects as the same host UID, so it should already be covered
-# by the host's own X11 auth cookie - but XWayland's actual cookie file
-# often isn't ~/.Xauthority (it's commonly a transient file under
-# /run/user/<uid>/ on a Wayland session), so read whatever $XAUTHORITY the
-# host shell actually has rather than assuming a path.
-XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
-XAUTH_MOUNT=()
-if [ -f "$XAUTHORITY" ]; then
-    XAUTH_MOUNT=(-v "$XAUTHORITY:/tmp/.Xauthority:ro" -e XAUTHORITY=/tmp/.Xauthority)
+# by the host's own X11 auth cookie - but on a GNOME Wayland session (this
+# one included) there usually is no ~/.Xauthority at all; Mutter generates
+# a transient, randomly-named XWayland cookie under /run/user/<uid>/
+# instead. Prefer $XAUTHORITY if the environment actually has it (it may,
+# in an interactive login shell that imported the session environment,
+# even though a plain non-interactive one won't), then fall back to
+# locating Mutter's file directly, then finally the traditional path.
+if [ -n "$XAUTHORITY" ] && [ -f "$XAUTHORITY" ]; then
+    XAUTH_HOST="$XAUTHORITY"
 else
-    echo "Warning: no X11 auth cookie found at $XAUTHORITY - relying on xhost only." >&2
+    XAUTH_HOST=$(ls -t /run/user/"$(id -u)"/.mutter-Xwaylandauth.* 2>/dev/null | head -1)
+    if [ -z "$XAUTH_HOST" ] && [ -f "$HOME/.Xauthority" ]; then
+        XAUTH_HOST="$HOME/.Xauthority"
+    fi
+fi
+
+XAUTH_MOUNT=()
+if [ -n "$XAUTH_HOST" ]; then
+    XAUTH_MOUNT=(-v "$XAUTH_HOST:/tmp/.Xauthority:ro" -e XAUTHORITY=/tmp/.Xauthority)
+else
+    echo "Warning: no X11 auth cookie found (checked \$XAUTHORITY, Mutter's" >&2
+    echo "transient cookie, and ~/.Xauthority) - connection will likely fail." >&2
 fi
 
 # Belt-and-braces fallback in case the cookie approach above doesn't cover
-# it (e.g. cookie file is stale) - bare "local:" authorizes local-socket
-# connections, unlike the previous "local:podman" (not a real system user,
-# so that authorized nothing).
-xhost +local: > /dev/null 2>&1 || true
+# it (e.g. cookie file is stale) - only if xhost is actually installed,
+# which it isn't guaranteed to be on a Wayland-first RHEL10 desktop.
+if command -v xhost > /dev/null 2>&1; then
+    xhost +local: > /dev/null 2>&1 || true
+fi
 
 echo "Image:      $IMAGE"
 echo "DISPLAY:    $DISPLAY"
