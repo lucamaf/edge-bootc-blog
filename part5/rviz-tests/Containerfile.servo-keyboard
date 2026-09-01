@@ -1,0 +1,59 @@
+# tagged as quay.io/luferrar/part5:rviz-servo-keyboard
+#
+# Adds servo_keyboard_input on top of rviz-servo. It lives in moveit2_tutorials,
+# which isn't packaged for Humble on RoboStack (only Jazzy - confirmed against
+# the actual robostack-humble/robostack-jazzy package indices), so it's built
+# from source here instead.
+#
+# moveit2_tutorials is one single ament_cmake package - its root CMakeLists.txt
+# add_subdirectory()s every tutorial (pick_and_place, perception_pipeline,
+# realtime_servo, etc.) under one package.xml, so there's no clean way to
+# build "just" the servo piece; this builds the whole package.
+FROM quay.io/luferrar/part5:rviz-servo
+
+# ros-dev-tools (conda-forge) bundles colcon, rosdep, build-essential (a C++
+# toolchain), and vcstool - everything needed to build a ROS2 package from
+# source. git for the clone.
+RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
+    git \
+    ros-dev-tools \
+    && micromamba clean -y -a
+
+# Best-effort mapping of moveit2_tutorials' package.xml dependencies to
+# robostack-humble conda package names (ros-humble-<name>, hyphenated -
+# the convention every package checked so far has followed). Packages
+# already pulled in transitively by moveit/moveit-servo (moveit_core,
+# moveit_ros_planning, moveit_configs_utils, moveit_msgs, pluginlib,
+# tf2_eigen, tf2_geometry_msgs, eigen) are left out. If colcon reports any
+# of these as still missing, that's the next thing to fix - same as the
+# controller_manager gap in Containerfile.servo.
+RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
+    ros-humble-geometric-shapes \
+    ros-humble-interactive-markers \
+    ros-humble-moveit-ros-perception \
+    ros-humble-moveit-hybrid-planning \
+    ros-humble-moveit-visual-tools \
+    ros-humble-rviz-visual-tools \
+    ros-humble-moveit-task-constructor-core \
+    ros-humble-gripper-controllers \
+    ros-humble-joint-state-publisher \
+    && micromamba clean -y -a \
+    && chmod -R a+rX /opt/conda
+
+# Shallow clone (humble branch) - this repo has a lot of tutorial content
+# unrelated to what we're building, no need for full history.
+RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
+    mkdir -p /opt/servo_keyboard_ws/src && \
+    git clone --depth 1 --branch humble \
+      https://github.com/moveit/moveit2_tutorials.git \
+      /opt/servo_keyboard_ws/src/moveit2_tutorials && \
+    cd /opt/servo_keyboard_ws && \
+    colcon build --packages-select moveit2_tutorials \
+      --cmake-args -DCMAKE_BUILD_TYPE=Release && \
+    chmod -R a+rX /opt/servo_keyboard_ws
+
+COPY entrypoint-servo-keyboard.sh /usr/local/bin/entrypoint-servo-keyboard.sh
+RUN chmod +x /usr/local/bin/entrypoint-servo-keyboard.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-servo-keyboard.sh"]
+CMD ["ros2", "run", "moveit2_tutorials", "servo_keyboard_input"]
