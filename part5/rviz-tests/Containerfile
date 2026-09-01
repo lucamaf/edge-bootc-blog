@@ -1,8 +1,9 @@
 # tagged as quay.io/luferrar/part5:rviz-humble
 #
 # RViz2 test container for RHEL10 + NVIDIA (Quadro P620), GPU-accelerated via
-# the host's nvidia-container-toolkit/CDI setup, GUI shown via Wayland
-# passthrough (see run-rviz-test.sh).
+# the host's nvidia-container-toolkit/CDI setup (see nvidia-cdi-setup.md), GUI
+# shown via X11/XWayland passthrough (see run-rviz-test.sh). Not Wayland:
+# RoboStack/conda-forge's Qt build has no "wayland" platform plugin at all.
 #
 # ROS2 is installed via RoboStack (conda-forge + robostack-humble), not RPMs:
 # the Fedora robotics-sig Copr (and its CentOS Stream 10 variant) explicitly
@@ -17,11 +18,13 @@ FROM registry.access.redhat.com/ubi10/ubi:latest
 RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm \
     && dnf clean all
 
-# System libraries needed for Qt's wayland (and xcb, as a fallback - see
-# README) platform plugins, and the GL/EGL dispatch layer that the NVIDIA
-# driver libraries mounted in by the host's nvidia-container-toolkit hook
-# into at runtime. The NVIDIA driver itself is NOT installed here - it's
-# injected by the host via --device nvidia.com/gpu=all (CDI).
+# System libraries needed for Qt's xcb (X11/XWayland) platform plugin, and
+# the GL/EGL dispatch layer that the NVIDIA driver libraries mounted in by
+# the host's nvidia-container-toolkit hook into at runtime. The wayland-*
+# libs are kept in case a future Qt build in this env picks up wayland
+# support, but nothing here currently uses them. The NVIDIA driver itself
+# is NOT installed here - it's injected by the host via
+# --device nvidia.com/gpu=all (CDI).
 RUN dnf install -y \
     ca-certificates \
     curl \
@@ -58,9 +61,9 @@ RUN micromamba create -y -n ros_env -c conda-forge -c robostack-humble ros-humbl
     && micromamba clean -y -a
 
 # The container is meant to be run with --user <host-uid>:<host-gid> (see
-# run-rviz-test.sh) so Wayland socket ownership lines up with the host
-# session, so make the env readable/executable by any UID rather than
-# baking in a fixed one.
+# run-rviz-test.sh) so it matches the host user's X11/xhost authorization,
+# so make the env readable/executable by any UID rather than baking in a
+# fixed one.
 RUN chmod -R a+rX /opt/conda
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
@@ -71,7 +74,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/check-gpu.sh
 # of its own beyond the bind-mounted one, see run-rviz-test.sh) has
 # somewhere to put Qt/ROS config files.
 ENV HOME=/tmp
-ENV QT_QPA_PLATFORM=wayland
+ENV QT_QPA_PLATFORM=xcb
 ENV NVIDIA_DRIVER_CAPABILITIES=all
 ENV NVIDIA_VISIBLE_DEVICES=all
 

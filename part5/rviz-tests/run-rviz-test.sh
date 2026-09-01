@@ -1,7 +1,14 @@
 #!/bin/bash
 # Launches the rviz-tests container on the HOST (the RHEL10 box with the
-# Quadro P620), passing through the host's Wayland session and the GPU via
-# the already-configured nvidia-container-toolkit/CDI setup.
+# Quadro P620), passing through the GPU via nvidia-container-toolkit/CDI
+# (see nvidia-cdi-setup.md) and the GUI via X11/XWayland.
+#
+# X11, not Wayland: RoboStack/conda-forge's Qt build for ros-humble-desktop
+# has no "wayland" platform plugin at all (confirmed by Qt's own error
+# listing its available plugins - xcb was the only relevant one present),
+# so Wayland passthrough can't work with this toolchain regardless of host
+# setup. xcb connects to XWayland, which RHEL10 keeps specifically for X11
+# app compatibility even though the standalone Xorg server is gone.
 #
 # Usage:
 #   ./run-rviz-test.sh [image] -- [command...]
@@ -20,30 +27,28 @@ if [ "$1" = "--" ]; then
     shift
 fi
 
-XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
-WAYLAND_SOCKET="$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+DISPLAY="${DISPLAY:-:0}"
 
-if [ ! -S "$WAYLAND_SOCKET" ]; then
-    echo "Error: no Wayland socket at $WAYLAND_SOCKET" >&2
-    echo "Run this from a terminal inside your Wayland desktop session on the host" >&2
-    echo "(not over a plain SSH session without a forwarded/available compositor)." >&2
+if [ ! -S "/tmp/.X11-unix/X${DISPLAY#:}" ]; then
+    echo "Error: no X11/XWayland socket for DISPLAY=$DISPLAY" >&2
+    echo "Run this from a terminal inside your desktop session on the host." >&2
     exit 1
 fi
 
-echo "Image:            $IMAGE"
-echo "Wayland socket:    $WAYLAND_SOCKET"
-echo "Running as:        $(id -u):$(id -g)"
+xhost +local:podman > /dev/null 2>&1 || true
+
+echo "Image:      $IMAGE"
+echo "DISPLAY:    $DISPLAY"
+echo "Running as: $(id -u):$(id -g)"
 echo ""
 
 exec podman run --rm -it \
     --device nvidia.com/gpu=all \
     -e NVIDIA_DRIVER_CAPABILITIES=all \
     -e NVIDIA_VISIBLE_DEVICES=all \
-    -e XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
-    -e WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
-    -e QT_QPA_PLATFORM=wayland \
-    -v "$WAYLAND_SOCKET:$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" \
+    -e DISPLAY="$DISPLAY" \
+    -e QT_QPA_PLATFORM=xcb \
+    -v /tmp/.X11-unix:/tmp/.X11-unix \
     -v /etc/passwd:/etc/passwd:ro \
     --user "$(id -u):$(id -g)" \
     --security-opt label=disable \

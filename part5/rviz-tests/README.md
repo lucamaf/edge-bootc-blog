@@ -2,7 +2,7 @@
 
 A standalone application container (not a bootc OS image, unlike the rest of `part5/`) for testing
 GPU-accelerated ROS2 visualization (`rviz2`) on an x86_64 RHEL10 host with an NVIDIA Quadro P620,
-showing the GUI via Wayland passthrough into the container.
+showing the GUI via X11/XWayland passthrough into the container.
 
 ## Why RoboStack instead of RPMs
 
@@ -21,34 +21,36 @@ RoboStack sidesteps this entirely: it builds ROS2 (including `rviz2`) via conda-
 vendored Ogre build, independent of Fedora's packaging. `ros-humble-desktop` from
 `-c conda-forge -c robostack-humble` includes `rviz2`.
 
+## Why X11/XWayland, not Wayland
+
+Wayland passthrough was the original plan, but RoboStack/conda-forge's Qt build for
+`ros-humble-desktop` has no `wayland` platform plugin at all — confirmed by Qt's own startup error,
+which lists its available plugins (`eglfs, minimal, minimalegl, offscreen, vnc, webgl, xcb`) with no
+`wayland` among them. That's a gap in how conda-forge built this specific Qt package, not a host
+configuration issue, so no amount of Wayland setup on the host side would fix it.
+
+`xcb` connects through **XWayland** instead. RHEL10 removes the standalone Xorg server, but keeps
+XWayland specifically for X11 app compatibility — GNOME/Mutter starts it automatically the moment an
+X11 client tries to connect. So this still works on a normal RHEL10 Wayland desktop; it just goes
+through the compatibility layer rather than talking to Wayland natively.
+
 ## Prerequisites
 
 - RHEL10 host with the NVIDIA driver working (this machine: see `lenovo-p330-nvidia-fix.md`) **and**
-  `nvidia-container-toolkit` installed with a generated CDI spec — the driver alone is not enough, and
-  as of this writing that second part still needs to be done. See `nvidia-cdi-setup.md`. This
-  container does **not** install the NVIDIA driver itself; it's injected at runtime via
-  `--device nvidia.com/gpu=all`, which has nothing to resolve against without that setup.
-- A Wayland desktop session running on the host (the launcher script needs a live
-  `$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY` socket to bind-mount in).
+  `nvidia-container-toolkit` installed with a generated CDI spec — the driver alone is not enough. See
+  `nvidia-cdi-setup.md`. This container does **not** install the NVIDIA driver itself; it's injected at
+  runtime via `--device nvidia.com/gpu=all`, which has nothing to resolve against without that setup.
+- A desktop session running on the host with `$DISPLAY` set (check with `echo $DISPLAY`) — this is
+  XWayland's socket, present on a normal GNOME Wayland session, not a separate X11 session you need to
+  set up.
 - `podman` new enough to support CDI devices (`--device vendor.com/device=...`).
 
-## Before you run this: 3 checks
+## Before you run this: 2 checks
 
-None of these are verified by the tooling here — they depend on the specific host, and getting them
+Neither of these is verified by the tooling here — they depend on the specific host, and getting them
 wrong produces confusing failures (or silent software rendering) rather than a clear error.
 
-**1. Which RDP server is actually serving the session you'll test over?**
-```bash
-systemctl status gnome-remote-desktop.service   # GNOME's built-in RDP - real Wayland session
-rpm -q xrdp                                     # traditional X11-based RDP, if installed
-```
-If it's `gnome-remote-desktop`, an RDP login spins up a real Wayland/Mutter session, so
-`$XDG_RUNTIME_DIR/wayland-0` genuinely exists and the Wayland-passthrough path below should apply the
-same as sitting at the console. If it's `xrdp`, there is no Wayland session at all — skip straight to
-the [X11 fallback](#if-wayland-passthrough-gives-you-trouble) instead, since the default script will
-fail its own precondition check (no `wayland-0` socket to find).
-
-**2. Does this host have more than one GPU (e.g. NVIDIA + integrated Intel/AMD)?**
+**1. Does this host have more than one GPU (e.g. NVIDIA + integrated Intel/AMD)?**
 ```bash
 lspci | grep -Ei 'vga|3d controller'
 ```
@@ -59,7 +61,7 @@ after starting the container and if the renderer string isn't NVIDIA, force it e
 to the `podman run` invocation (adjust the path if the mounted vendor JSON lands elsewhere — check
 with `ls /usr/share/glvnd/egl_vendor.d/` inside the container).
 
-**3. Can your host user actually open the GPU device nodes without root?**
+**2. Can your host user actually open the GPU device nodes without root?**
 ```bash
 ls -la /dev/nvidia* /dev/dri/render*
 groups
@@ -89,13 +91,13 @@ First build takes a while — the `ros-humble-desktop` conda solve/install pulls
 ./run-rviz-test.sh quay.io/luferrar/part5:rviz-humble -- check-gpu.sh
 ```
 
-Run this from a terminal *inside* the host's Wayland session (not a bare SSH session without a
-compositor available) — the script exits with an error if it can't find the Wayland socket.
+Run this from a terminal *inside* the host's desktop session (not a bare SSH session with no display
+available) — the script exits with an error if it can't find an X11/XWayland socket for `$DISPLAY`.
 
 ## Verifying the GPU is actually being used
 
 GPU passthrough for GUI apps is easy to get "working" but silently falling back to software
-rendering, or having only XWayland (not the app itself) touch the GPU. Check both:
+rendering. Check both:
 
 ```bash
 # Inside the container
@@ -107,36 +109,17 @@ Look for `NVIDIA`/`Quadro P620` in the renderer string — `llvmpipe` means soft
 # On the HOST, while rviz2 is running in the container
 nvidia-smi
 ```
-Confirm a GPU process actually shows up. This is the more reliable check: there's a known class of
-issue where rviz2 under Wayland renders through XWayland compositing rather than a native GPU context,
-in which case `nvidia-smi` may not show the app itself even though something is drawing.
-
-## If Wayland passthrough gives you trouble
-
-Wayland was chosen deliberately for this container, but native-Wayland GPU-accelerated Qt apps have
-more rough edges than the X11/XWayland path. If `rviz2` fails to open a window or renders incorrectly,
-fall back to X11 as a quick diagnostic:
-
-```bash
-xhost +local:podman   # on the host
-podman run --rm -it \
-    --device nvidia.com/gpu=all \
-    -e NVIDIA_DRIVER_CAPABILITIES=all -e NVIDIA_VISIBLE_DEVICES=all \
-    -e DISPLAY="$DISPLAY" -e QT_QPA_PLATFORM=xcb \
-    -v /tmp/.X11-unix:/tmp/.X11-unix \
-    -v /etc/passwd:/etc/passwd:ro \
-    --user "$(id -u):$(id -g)" \
-    --security-opt label=disable \
-    quay.io/luferrar/part5:rviz-humble
-```
-If that works and Wayland doesn't, it isolates the problem to the Wayland plumbing rather than
-GPU/driver/RoboStack itself.
+Confirm a GPU process actually shows up — the more reliable of the two checks, since it reflects what
+the driver itself sees rather than just what the app reports.
 
 ## Files
 
 - **Containerfile**: UBI10 base + RoboStack (`ros-humble-desktop`, includes `rviz2`) via micromamba
 - **entrypoint.sh**: activates the `ros_env` micromamba environment, then execs the given command
 - **check-gpu.sh**: prints the EGL/GLX renderer string to confirm NVIDIA vs. software rendering
-- **run-rviz-test.sh**: host-side launcher — mounts the Wayland socket, passes the GPU via CDI, runs
-  as the host's own UID (the image has no fixed user; `/etc/passwd` is bind-mounted read-only so the
-  arbitrary UID still resolves to a name)
+- **run-rviz-test.sh**: host-side launcher — mounts the X11/XWayland socket, passes the GPU via CDI,
+  runs as the host's own UID (the image has no fixed user; `/etc/passwd` is bind-mounted read-only so
+  the arbitrary UID still resolves to a name)
+- **nvidia-cdi-setup.md**: how to install `nvidia-container-toolkit` and generate the CDI spec this
+  container's GPU passthrough depends on
+- **lenovo-p330-nvidia-fix.md**: how the NVIDIA driver itself was gotten working on this host
