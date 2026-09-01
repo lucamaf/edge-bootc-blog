@@ -125,10 +125,6 @@ and the original [OSADL `mklatencyplot.bash`](https://www.osadl.org/uploads/medi
 script. `cyclictest` measures the gap between a thread's intended and actual wake-up time — it's the
 standard sanity check to run *before* benchmarking a real robotics workload on top.
 
-That toolkit currently documents RHEL 9 / `Containerfile2`; the tools themselves (they just shell out
-to `cyclictest`/`gnuplot`) work unchanged against this RHEL 10 image, but its README should be updated
-to reference `Containerfile7` and this image's device naming.
-
 Suggested workflow once a `device007rt`-based device is deployed and enrolled:
 
 ```bash

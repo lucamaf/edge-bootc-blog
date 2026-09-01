@@ -1,0 +1,81 @@
+# tagged as quay.io/luferrar/rviz-tests:humble
+#
+# RViz2 test container for RHEL10 + NVIDIA (Quadro P2200), GPU-accelerated via
+# the host's nvidia-container-toolkit/CDI setup, GUI shown via Wayland
+# passthrough (see run-rviz-test.sh).
+#
+# ROS2 is installed via RoboStack (conda-forge + robostack-humble), not RPMs:
+# the Fedora robotics-sig Copr (and its CentOS Stream 10 variant) explicitly
+# doesn't ship rviz2 at all ("not available in this Copr due to upstream
+# build issues with Ogre and Assimp on Fedora") - RoboStack builds its own
+# Ogre via conda-forge, sidestepping that failure.
+FROM registry.access.redhat.com/ubi10/ubi:latest
+
+# EPEL for glx-utils (glxinfo), used by check-gpu.sh to confirm rendering is
+# actually happening on the NVIDIA GPU and not falling back to software
+# (llvmpipe) or being silently picked up by XWayland only.
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm \
+    && dnf clean all
+
+# System libraries needed for Qt's wayland (and xcb, as a fallback - see
+# README) platform plugins, and the GL/EGL dispatch layer that the NVIDIA
+# driver libraries mounted in by the host's nvidia-container-toolkit hook
+# into at runtime. The NVIDIA driver itself is NOT installed here - it's
+# injected by the host via --device nvidia.com/gpu=all (CDI).
+RUN dnf install -y \
+    ca-certificates \
+    curl \
+    mesa-libGL \
+    mesa-libEGL \
+    libglvnd \
+    libglvnd-egl \
+    libglvnd-glx \
+    libwayland-client \
+    libwayland-cursor \
+    libwayland-egl \
+    libxkbcommon \
+    libxcb \
+    libX11 \
+    libXext \
+    libXrender \
+    libSM \
+    libICE \
+    fontconfig \
+    dbus-libs \
+    glx-utils \
+    && dnf clean all
+
+# Micromamba (standalone, no system python/conda needed) to install ROS2 via
+# RoboStack. This is a plain executable, not an archive.
+ENV MAMBA_ROOT_PREFIX=/opt/conda
+RUN curl -fsSL -o /usr/local/bin/micromamba \
+    https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64 \
+    && chmod +x /usr/local/bin/micromamba
+
+# ROS2 Humble desktop (includes rviz2) via RoboStack. Channel order matters:
+# conda-forge first, then robostack-humble, per RoboStack's own docs.
+RUN micromamba create -y -n ros_env -c conda-forge -c robostack-humble ros-humble-desktop \
+    && micromamba clean -y -a
+
+# The container is meant to be run with --user <host-uid>:<host-gid> (see
+# run-rviz-test.sh) so Wayland socket ownership lines up with the host
+# session, so make the env readable/executable by any UID rather than
+# baking in a fixed one.
+RUN chmod -R a+rX /opt/conda
+
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY check-gpu.sh /usr/local/bin/check-gpu.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/check-gpu.sh
+
+# Writable-by-anyone home so an arbitrary --user UID (no /etc/passwd entry
+# of its own beyond the bind-mounted one, see run-rviz-test.sh) has
+# somewhere to put Qt/ROS config files.
+ENV HOME=/tmp
+ENV QT_QPA_PLATFORM=wayland
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+ENV NVIDIA_VISIBLE_DEVICES=all
+
+WORKDIR /opt
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["rviz2"]
