@@ -1,0 +1,24 @@
+# tagged as quay.io/luferrar/part5:rviz-servo
+#
+# MoveIt Servo realtime_servo_tutorial demo, layered on the rviz-tests base
+# image (X11/GPU passthrough, RoboStack ROS2 Humble already set up there):
+# https://moveit.picknik.ai/humble/doc/examples/realtime_servo/realtime_servo_tutorial.html
+#
+# moveit2_tutorials (servo_keyboard_input, the C++ interface demo) isn't
+# packaged for Humble on RoboStack - only Jazzy - so it's not included here.
+# servo_example.launch.py itself ships inside moveit_servo (confirmed
+# against the moveit2 source tree, humble branch), so the core demo - RViz
+# shows the Panda arm and a collision object, then servoing is triggered
+# via a service call - doesn't need it.
+FROM quay.io/luferrar/part5:rviz-humble
+
+RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
+    ros-humble-moveit-servo \
+    ros-humble-moveit-resources-panda-moveit-config \
+    && micromamba clean -y -a \
+    && chmod -R a+rX /opt/conda
+
+# Default to the demo launch file directly - RViz plus the servo node and
+# a simulated Panda arm. Servoing itself still needs a second terminal
+# triggering /servo_node/start_servo (see README).
+CMD ["ros2", "launch", "moveit_servo", "servo_example.launch.py"]
