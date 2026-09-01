@@ -105,7 +105,7 @@ echo "Test Configuration:"
 echo "  Duration: $TEST_DURATION"
 echo "  Load Type: $LOAD_TYPE"
 echo "  Intensity: $LOAD_INTENSITY/4"
-echo "  Test Name: $TEST_NAME"
+#echo "  Test Name: $TEST_NAME"
 echo ""
 
 if [ $STRESS_AVAILABLE -eq 1 ]; then
