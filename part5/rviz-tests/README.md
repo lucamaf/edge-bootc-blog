@@ -29,18 +29,47 @@ under `QT_QPA_PLATFORM=wayland`, RViz2's own log shows it calling `OgreGLXWindow
 regardless). See the "Test Results" section at the end for the GPU load test's findings on this image,
 including a stability difference worth knowing about before relying on it for sustained work.
 
+### Fedora + Lyrical (official Copr RPMs)
+
+A third alternative, even closer to a "real" upstream-supported RPM channel than the Kilted image:
+`Containerfile.fedora-lyrical` (`quay.io/luferrar/part5:rviz-lyrical`), Fedora 44 base, ROS2 "Lyrical"
+from the Fedora robotics-sig's own `hellaenergy/ros2` Copr — see the correction above for why this
+works despite that Copr's own docs claiming `rviz2` isn't available.
+
+The image is smaller still than Kilted (~2.5GB vs. ~6GB) and needs no EPEL/CodeReady Builder wrangling
+— Fedora's own repos are self-contained. It did need two runtime dependencies added explicitly that
+`ros-lyrical-ros-desktop` doesn't pull in on its own — `rviz2` fails at library-load time without them,
+even though nothing in the RPM dependency chain declares them as required (a packaging gap in this
+Copr, not a Fedora or dnf issue; see the Containerfile's comments for exactly how that was diagnosed).
+
+Confirmed working the same way as the other images: `check-gpu.sh` shows the real GLX renderer
+(`Quadro P620/PCIe/SSE2`), and `nvidia-smi` on the host shows an actual `rviz2` GPU process while it's
+running. Same X11/XWayland-not-Wayland story as Kilted, too — `QT_QPA_PLATFORM=wayland` fails with the
+identical `OgreGLXWindow.cpp`/`GLXWindow::create`/`Invalid parentWindowHandle` error, confirming
+Lyrical's `rviz-ogre-vendor` hardcodes GLX the same way Kilted's does. `xcb` (the default here) launches
+clean.
+
+No GPU load test variant (`gpu_pointcloud_test`) built for this image yet — the Kilted-based one already
+answered the "does the RPM approach get real GPU compute working" question, and its result (working but
+less stable under sustained load than the conda image) is documented below.
+
 ## Why RoboStack instead of RPMs
 
 RHEL10 has no official ROS2 RPMs. The Fedora robotics-sig documents a
 [Copr-based install for CentOS Stream 10](https://docs.fedoraproject.org/en-US/robotics-sig/ros2/) via
-`hellaenergy/ros2` (ROS2 "Lyrical") / `hellaenergy/ros2-jazzy`, but that repo's own docs say plainly:
+`hellaenergy/ros2` (ROS2 "Lyrical") / `hellaenergy/ros2-jazzy`, and that repo's own docs say plainly:
 
 > The `rviz2` 3D visualizer is not available in this Copr due to upstream build issues with Ogre and
 > Assimp on Fedora.
 
-Confirmed directly against both Copr projects' package lists — no `rviz2`/`ogre`/`assimp` package
-exists on any target, including CentOS Stream 10. Since this failure is in Fedora's own Ogre/Assimp
-packaging (not RHEL10-specific), building from RPM sources hits the same wall.
+That's stale, at least for the Fedora target: an unpaginated check of the Copr's package list earlier
+in this project's own history wrongly concluded the same thing (zero `rviz2`/`ogre`/`assimp` packages
+anywhere), but re-checking with correct API pagination turned up a full `rviz2` stack —
+`ros-lyrical-rviz2`, `ros-lyrical-rviz-ogre-vendor`, `ros-lyrical-rviz-common`,
+`ros-lyrical-rviz-default-plugins` — plus a `ros-lyrical-ros-desktop` metapackage pulling all of it in.
+It genuinely builds and runs; see "Fedora + Lyrical (official Copr RPMs)" below. Not re-checked against
+the CentOS Stream 10 chroot of the same Copr specifically — this project only built and tested the
+Fedora target.
 
 RoboStack sidesteps this entirely: it builds ROS2 (including `rviz2`) via conda-forge, with its own
 vendored Ogre build, independent of Fedora's packaging. `ros-humble-desktop` from
@@ -299,6 +328,9 @@ architecture works end to end; not yet evidence it's production-ready.
   above
 - **entrypoint-pointcloud-rpm.sh**: same pattern as `entrypoint-kilted.sh`, plus overlaying the
   `gpu_pointcloud_test` colcon workspace and the `nvidia-*` wheel library-path discovery it needs
+- **Containerfile.fedora-lyrical**: the Fedora + official Copr RPMs alternative (`rviz-lyrical`) — see
+  [above](#fedora--lyrical-official-copr-rpms)
+- **entrypoint-lyrical.sh**: sources `/opt/ros/lyrical/setup.bash`, then execs the given command
 - **nvidia-cdi-setup.md**: how to install `nvidia-container-toolkit` and generate the CDI spec this
   container's GPU passthrough depends on
 - **lenovo-p330-nvidia-fix.md**: how the NVIDIA driver itself was gotten working on this host

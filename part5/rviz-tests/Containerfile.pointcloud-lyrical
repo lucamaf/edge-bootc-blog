@@ -1,0 +1,54 @@
+# tagged as quay.io/luferrar/part5:rviz-pointcloud-lyrical
+#
+# gpu_pointcloud_test (../gpu_pointcloud_test/), same package as
+# Containerfile.pointcloud/Containerfile.pointcloud-rpm, layered on the
+# Fedora + official Copr RPMs image (quay.io/luferrar/part5:rviz-lyrical)
+# instead of RoboStack or CentOS Stream 9/Kilted - the third variant of this
+# GPU load test, one per ROS2 distribution mechanism explored in this
+# directory.
+#
+# Build context is the PARENT directory (part5/), same reason as the other
+# two pointcloud Containerfiles - needs to reach the sibling
+# gpu_pointcloud_test/ package:
+#
+#   podman build -t quay.io/luferrar/part5:rviz-pointcloud-lyrical \
+#     -f rviz-tests/Containerfile.pointcloud-lyrical part5/
+FROM quay.io/luferrar/part5:rviz-lyrical
+
+RUN dnf install -y \
+    python3-colcon-common-extensions \
+    python3-pip \
+    python3-setuptools \
+    && dnf clean all
+
+# Same package set that worked on Containerfile.pointcloud-rpm's CentOS
+# Stream 9/Python 3.9 image - see that Containerfile's comments for why
+# these specific packages (NVIDIA's unified cuda-toolkit metapackage rather
+# than trusting cupy-cuda12x's own [ctk] extra). Fedora 44 ships a much
+# newer Python than CentOS Stream 9, so this may resolve a newer/different
+# cupy-cuda12x release than the Kilted image got - untested until built.
+RUN pip3 install --no-cache-dir --upgrade \
+    cupy-cuda12x \
+    "cuda-toolkit[cublas,cudart,cufft,curand,cusolver,cusparse,nvrtc]==12.*" \
+    numpy
+
+COPY gpu_pointcloud_test /opt/gpu_pointcloud_ws/src/gpu_pointcloud_test
+
+# Plain install, not --symlink-install: for ament_python packages that flag
+# shells out to the legacy "setup.py develop --editable" mechanism, which
+# recent setuptools has dropped (same issue hit in the other two pointcloud
+# Containerfiles).
+RUN source /opt/ros/lyrical/setup.bash && \
+    cd /opt/gpu_pointcloud_ws && \
+    colcon build --packages-select gpu_pointcloud_test
+
+COPY rviz-tests/entrypoint-pointcloud-lyrical.sh /usr/local/bin/entrypoint-pointcloud-lyrical.sh
+RUN chmod +x /usr/local/bin/entrypoint-pointcloud-lyrical.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-pointcloud-lyrical.sh"]
+
+# Same tuned parameters as the other two pointcloud images' default - see
+# README's "Test Results" section for the P620-specific reasoning/numbers
+# behind these values.
+CMD ["ros2", "launch", "gpu_pointcloud_test", "gpu_pointcloud.launch.py", \
+     "num_points:=200000", "gpu_iterations:=80", "neighbor_sample:=800"]

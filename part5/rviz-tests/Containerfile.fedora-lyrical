@@ -20,13 +20,12 @@
 # docs). Simpler setup than the Kilted/CentOS Stream 9 image as a result:
 # no EPEL/CodeReady Builder needed, Fedora's own repos are self-contained.
 #
-# Whether native Wayland actually works for RViz2 here is untested -
-# Containerfile.ros2-rpm's Qt build (RPM-packaged, same family) does have a
-# working wayland platform plugin, but RViz2 still needed XWayland there
-# regardless, because rviz-ogre-vendor's window creation is hardcoded to
-# GLX/X11 independent of what platform Qt itself runs under. No evidence
-# yet that Lyrical's rviz-ogre-vendor differs, so this defaults to xcb the
-# same way, pending an actual test.
+# Native Wayland tested and confirmed NOT to work here either, same as
+# Containerfile.ros2-rpm: QT_QPA_PLATFORM=wayland gets past Qt itself but
+# rviz-ogre-vendor's window creation is still hardcoded to GLX/X11 -
+# "RenderingAPIException: Invalid parentWindowHandle (wrong server or
+# screen) in GLXWindow::create at .../GLX/OgreGLXWindow.cpp". xcb (the
+# default here) launches cleanly with no errors.
 FROM registry.fedoraproject.org/fedora:44
 
 RUN dnf install -y dnf-plugins-core \
