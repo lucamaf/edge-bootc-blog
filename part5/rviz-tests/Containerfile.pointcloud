@@ -67,9 +67,14 @@ RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
 
 COPY gpu_pointcloud_test /opt/gpu_pointcloud_ws/src/gpu_pointcloud_test
 
+# Plain install, not --symlink-install: for ament_python packages that flag
+# shells out to the legacy "setup.py develop --editable" mechanism, which
+# recent setuptools has dropped ("error: option --editable not recognized").
+# Not needed anyway for a one-shot container build (that flag exists for
+# iterative local dev, so source edits take effect without a rebuild).
 RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
     cd /opt/gpu_pointcloud_ws && \
-    colcon build --packages-select gpu_pointcloud_test --symlink-install
+    colcon build --packages-select gpu_pointcloud_test
 
 RUN chmod -R a+rX /opt/conda /opt/gpu_pointcloud_ws
 

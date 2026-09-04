@@ -112,6 +112,52 @@ nvidia-smi
 Confirm a GPU process actually shows up — the more reliable of the two checks, since it reflects what
 the driver itself sees rather than just what the app reports.
 
+## GPU Load Test (gpu_pointcloud_test)
+
+A second, standalone image specifically for generating a controllable, sustained GPU load — useful
+for the "does GPU rendering interfere with an RT control loop" question from `part5/rt`: run this
+alongside `cyclictest` on the isolated core instead of just watching RViz sit idle, to see whether
+real GPU/rendering activity on the housekeeping cores actually disturbs RT timing.
+
+It wraps [`../gpu_pointcloud_test/`](../gpu_pointcloud_test/) (see that package's own README for full
+details), which loads a point cloud (synthetic by default), applies a deliberately GPU-heavy iterative
+warp (CuPy, falling back to NumPy automatically if no GPU/CuPy is available), and republishes it as a
+high-frequency `PointCloud2` for RViz. `gpu_iterations`, `num_points`, and `neighbor_sample` control
+how heavy the load is.
+
+Built **standalone from scratch** (`Containerfile.pointcloud`), not layered on this directory's main
+`Containerfile`: `gpu_pointcloud_test` only needs `ros-humble-ros-base` + `rviz2`, not the full
+`ros-humble-desktop` metapackage — per that package's own README, `rviz2` isn't in `ros-base`, only in
+`desktop`, and nothing else in `desktop` (`rqt`, demo nodes, `turtlesim`, teleop packages, ...) is
+relevant here. Same X11/GPU passthrough rationale as the rest of this directory applies unchanged.
+
+### Build
+
+Build context is the **parent** directory (`part5/`), not this one, since it needs to reach the
+sibling `gpu_pointcloud_test/` package:
+
+```bash
+cd /path/to/part5
+podman build -t quay.io/luferrar/part5:rviz-pointcloud -f rviz-tests/Containerfile.pointcloud .
+```
+
+### Run
+
+Same launcher as the base image — no new script needed, `run-rviz-test.sh` already generalizes over
+image/command:
+
+```bash
+cd rviz-tests
+./run-rviz-test.sh quay.io/luferrar/part5:rviz-pointcloud                     # node + RViz together
+./run-rviz-test.sh quay.io/luferrar/part5:rviz-pointcloud -- check-gpu.sh     # renderer check
+./run-rviz-test.sh quay.io/luferrar/part5:rviz-pointcloud -- \
+    ros2 launch gpu_pointcloud_test gpu_pointcloud.launch.py gpu_iterations:=800 num_points:=2000000
+```
+
+Watch the terminal at startup for `Compute backend: cupy (GPU)` — if it says `numpy (CPU)` instead,
+CuPy didn't find the GPU; check with `nvidia-smi` the same way as the [GPU verification](#verifying-the-gpu-is-actually-being-used)
+above.
+
 ## Files
 
 - **Containerfile**: UBI10 base + RoboStack (`ros-humble-desktop`, includes `rviz2`) via micromamba
@@ -120,6 +166,10 @@ the driver itself sees rather than just what the app reports.
 - **run-rviz-test.sh**: host-side launcher — mounts the X11/XWayland socket, passes the GPU via CDI,
   runs as the host's own UID (the image has no fixed user; `/etc/passwd` is bind-mounted read-only so
   the arbitrary UID still resolves to a name)
+- **Containerfile.pointcloud**: standalone (`ros-base` + `rviz2`, not layered on `Containerfile`) image
+  for [`../gpu_pointcloud_test/`](../gpu_pointcloud_test/) — see [above](#gpu-load-test-gpu_pointcloud_test)
+- **entrypoint-pointcloud.sh**: same activation pattern as `entrypoint.sh`, plus overlaying the
+  `gpu_pointcloud_test` colcon workspace
 - **nvidia-cdi-setup.md**: how to install `nvidia-container-toolkit` and generate the CDI spec this
   container's GPU passthrough depends on
 - **lenovo-p330-nvidia-fix.md**: how the NVIDIA driver itself was gotten working on this host
