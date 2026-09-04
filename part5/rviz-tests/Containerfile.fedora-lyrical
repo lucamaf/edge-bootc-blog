@@ -1,0 +1,75 @@
+# tagged as quay.io/luferrar/part5:rviz-lyrical
+#
+# Third ROS2 source explored in this directory: Fedora + ROS2 Lyrical via
+# the Fedora robotics-sig's hellaenergy/ros2 Copr, per
+# https://docs.fedoraproject.org/en-US/robotics-sig/ros2/#_ros_2_lyrical_installation
+#
+# Confirmed directly against the actual Copr package list (146 packages,
+# paginated - the first-page-only check that ruled this out earlier in
+# this project's own history was wrong) that this genuinely builds a full
+# rviz2 stack: ros-lyrical-rviz2, ros-lyrical-rviz-ogre-vendor,
+# ros-lyrical-rviz-common, ros-lyrical-rviz-default-plugins, plus a full
+# ros-lyrical-ros-desktop metapackage. That's unlike the Ogre/Assimp build
+# failure on this same infrastructure's Jazzy Copr project, and unlike
+# RoboStack/conda-forge's Qt build (see Containerfile), which has no
+# "wayland" platform plugin at all.
+#
+# Fedora, not RHEL/CentOS Stream: this is upstream of RHEL, not RHEL10
+# itself - no ROS2 distro's official channel (RPM or binary) targets RHEL10
+# at all yet (checked directly against Humble/Jazzy/Kilted's own install
+# docs). Simpler setup than the Kilted/CentOS Stream 9 image as a result:
+# no EPEL/CodeReady Builder needed, Fedora's own repos are self-contained.
+#
+# Whether native Wayland actually works for RViz2 here is untested -
+# Containerfile.ros2-rpm's Qt build (RPM-packaged, same family) does have a
+# working wayland platform plugin, but RViz2 still needed XWayland there
+# regardless, because rviz-ogre-vendor's window creation is hardcoded to
+# GLX/X11 independent of what platform Qt itself runs under. No evidence
+# yet that Lyrical's rviz-ogre-vendor differs, so this defaults to xcb the
+# same way, pending an actual test.
+FROM fedora:44
+
+RUN dnf install -y dnf-plugins-core \
+    && dnf copr enable -y hellaenergy/ros2 \
+    && dnf clean all
+
+# X11/XWayland + GL/EGL dispatch libraries for Qt's xcb platform plugin and
+# GPU rendering - same rationale as this directory's other images (see
+# Containerfile). The NVIDIA driver itself is NOT installed here - it's
+# injected at runtime via --device nvidia.com/gpu=all (CDI).
+RUN dnf install -y \
+    mesa-libGL \
+    mesa-libEGL \
+    libglvnd \
+    libglvnd-egl \
+    libglvnd-glx \
+    libxkbcommon \
+    libxcb \
+    libX11 \
+    libXext \
+    libXrender \
+    libSM \
+    libICE \
+    fontconfig \
+    dbus-libs \
+    glx-utils \
+    && dnf clean all
+
+# ros-lyrical-ros-desktop includes rviz2 - see the header comment for how
+# that was confirmed against the actual Copr package list.
+RUN dnf install -y ros-lyrical-ros-desktop \
+    && dnf clean all
+
+COPY entrypoint-lyrical.sh /usr/local/bin/entrypoint-lyrical.sh
+COPY check-gpu.sh /usr/local/bin/check-gpu.sh
+RUN chmod +x /usr/local/bin/entrypoint-lyrical.sh /usr/local/bin/check-gpu.sh
+
+ENV HOME=/tmp
+ENV QT_QPA_PLATFORM=xcb
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+ENV NVIDIA_VISIBLE_DEVICES=all
+
+WORKDIR /opt
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-lyrical.sh"]
+CMD ["rviz2"]

@@ -4,6 +4,31 @@ A standalone application container (not a bootc OS image, unlike the rest of `pa
 GPU-accelerated ROS2 visualization (`rviz2`) on an x86_64 RHEL10 host with an NVIDIA Quadro P620,
 showing the GUI via X11/XWayland passthrough into the container.
 
+## RPM-based alternative (Kilted)
+
+This directory has two image families. Everything below through "Files" documents the primary one
+(RoboStack/conda-forge, ROS2 Humble). There's also an RPM-based alternative — `Containerfile.ros2-rpm`
+(`quay.io/luferrar/part5:rviz-kilted`) and its own GPU load test variant, `Containerfile.pointcloud-rpm`
+(`quay.io/luferrar/part5:rviz-pointcloud-rpm`) — built for a "cleaner, more Red Hat supported" version
+of the same idea, using ROS2's official RPM channel instead of conda.
+
+That channel doesn't target RHEL10 for any current distro, checked directly against each one's install
+docs: Humble's official RPMs only target RHEL 8, Jazzy and Kilted target RHEL 9. Kilted (the newest) is
+the closest match. The image uses **CentOS Stream 9**, not UBI9 — the official install guide's `crb
+enable` step is written for CentOS Stream/RHEL-proper's CodeReady Builder repo naming; UBI9 names the
+equivalent repo differently. It runs fine via podman on the RHEL10 host regardless, since containers
+aren't tied to the host's OS version.
+
+Results so far: the image is dramatically smaller (~6GB vs. `rviz-humble`'s 14GB, even though this is
+the full `ros-kilted-desktop`, not a trimmed-down variant), and GPU rendering is confirmed working the
+same way as the RoboStack images (`check-gpu.sh` / `nvidia-smi`). One genuine surprise: this Qt build
+*does* have a working `wayland` platform plugin (unlike RoboStack's, which has none at all) — but RViz2
+still needs `xcb`/XWayland regardless, because `rviz-ogre-vendor`'s actual 3D render window creation is
+hardcoded to GLX/X11 integration independent of what platform Qt itself is running under (confirmed:
+under `QT_QPA_PLATFORM=wayland`, RViz2's own log shows it calling `OgreGLXWindow.cpp`/`GLXWindow::create`
+regardless). See the "Test Results" section at the end for the GPU load test's findings on this image,
+including a stability difference worth knowing about before relying on it for sustained work.
+
 ## Why RoboStack instead of RPMs
 
 RHEL10 has no official ROS2 RPMs. The Fedora robotics-sig documents a
@@ -215,6 +240,45 @@ The tuned defaults (now the image's default `CMD`) ran clean for nearly 3 hours 
 hardware and this RT kernel, versus the heavy defaults faulting after 20 frames (~75 seconds of actual
 compute). That's a solid basis for trusting the tuned settings for sustained use here.
 
+## Test Results: RPM-Based Image (`rviz-pointcloud-rpm`), Tuned Load Crashed After ~4.5min
+
+Same GPU load test as above, same tuned parameters (`num_points=200000 gpu_iterations=80
+neighbor_sample=800`), same host, same RT kernel (`6.12.0-211.51.1.el10_2.x86_64+rt`) — but on
+`Containerfile.pointcloud-rpm` instead of the conda-based `Containerfile.pointcloud`. Reported plainly
+because the result is meaningfully different, not just a repeat confirmation.
+
+GPU acceleration is genuinely working here too: `Compute backend: cupy (GPU)` at startup, a first-frame
+JIT-compile warmup (2174ms, the same one-time-cost pattern seen on the conda image), then a steady
+state around **176ms/frame** — about 27% slower per-frame compute than the conda image's 139ms at the
+identical parameters, for reasons not yet isolated (older CUDA toolkit component versions pulled in via
+this image's Python 3.9 environment are the likely factor, but unconfirmed).
+
+It crashed after about 4.5 minutes (~1500 frames), not the 2h53m (4600+ frames) the conda-based image
+ran clean at these same settings. Same fault signature as the earlier heavy-load crash on the conda
+image:
+
+```
+NVRM: Xid (PCI:0000:01:00): 13, Graphics SM Warp Exception on (GPC 0, TPC 0): Out Of Range Address
+NVRM: Xid (PCI:0000:01:00): 13, Graphics SM Global Exception on (GPC 0, TPC 0): Physical Multiple Warp Errors
+NVRM: Xid (PCI:0000:01:00): 13, Graphics Exception: ESR 0x504648=0x135000e 0x504650=0x24 0x504644=0xd3eff2 0x50464c=0x17f
+NVRM: Xid (PCI:0000:01:00): 43, pid=54146, name=gpu_pointcloud_, channel 0x00000030
+```
+
+Same recovery behavior too — Xid 43 reset just that process's channel, `nvidia-smi` was fully healthy
+immediately after (564MiB used, 20% util, normal temp), no other unusual host activity in the journal
+around that time. A contained fault, not a GPU hang.
+
+**Not yet root-caused.** Plausible contributing factors, unconfirmed: the explicit `cuda-toolkit==12.*`
+version pin here may have pulled a less-tested nvrtc/cudart combination than whatever conda-forge's
+build used, or something specific to the older cp39-compatible CuPy release (13.6.0) this Python 3.9
+environment resolves to. Whether the RT kernel is involved at all remains exactly as untested as it was
+for the conda-based crash — both fired on the same kernel, no standard-kernel comparison has been run.
+
+**Takeaway:** this image gets real GPU-accelerated compute working, but on this one comparison it's
+noticeably less stable under sustained load than the conda-based image — worth further investigation
+before relying on it the way the conda image's tuned defaults are now trusted. Good evidence the
+architecture works end to end; not yet evidence it's production-ready.
+
 ## Files
 
 - **Containerfile**: UBI10 base + RoboStack (`ros-humble-desktop`, includes `rviz2`) via micromamba
@@ -227,6 +291,14 @@ compute). That's a solid basis for trusting the tuned settings for sustained use
   for [`../gpu_pointcloud_test/`](../gpu_pointcloud_test/) — see [above](#gpu-load-test-gpu_pointcloud_test)
 - **entrypoint-pointcloud.sh**: same activation pattern as `entrypoint.sh`, plus overlaying the
   `gpu_pointcloud_test` colcon workspace
+- **Containerfile.ros2-rpm**: the RPM-based alternative (`rviz-kilted`) — see
+  [above](#rpm-based-alternative-kilted)
+- **entrypoint-kilted.sh**: sources `/opt/ros/kilted/setup.bash`, then execs the given command
+- **Containerfile.pointcloud-rpm**: `gpu_pointcloud_test` layered on `rviz-kilted` instead of the
+  conda-based image — see [Test Results](#test-results-rpm-based-image-rviz-pointcloud-rpm-tuned-load-crashed-after-45min)
+  above
+- **entrypoint-pointcloud-rpm.sh**: same pattern as `entrypoint-kilted.sh`, plus overlaying the
+  `gpu_pointcloud_test` colcon workspace and the `nvidia-*` wheel library-path discovery it needs
 - **nvidia-cdi-setup.md**: how to install `nvidia-container-toolkit` and generate the CDI spec this
   container's GPU passthrough depends on
 - **lenovo-p330-nvidia-fix.md**: how the NVIDIA driver itself was gotten working on this host
