@@ -28,27 +28,24 @@ RUN dnf install -y \
     python3-setuptools \
     && dnf clean all
 
-# cupy-cuda12x for the GPU backend ([ctk] bundles the CUDA headers/nvrtc
-# CuPy needs to JIT-compile its kernels). Falls back to NumPy/CPU
-# automatically at runtime if this or the GPU isn't usable - which is
-# exactly what silently happened here without an explicit numpy upgrade:
-# pip saw CentOS Stream 9's RPM-packaged python3-numpy as "already
-# satisfying" CuPy's numpy dependency and left it alone, but that RPM
-# numpy predates the numpy._typing submodule CuPy's code imports, so
-# CuPy's own import failed with ModuleNotFoundError - silently caught by
-# gpu_backend.py's bare except, surfacing only as an unexplained CPU
-# fallback at runtime.
+# cupy-cuda12x, with numpy forced past CentOS Stream 9's RPM-packaged
+# version (1.23.5, predates the numpy._typing submodule CuPy's code
+# imports - silently caught by gpu_backend.py's bare except, surfacing
+# only as an unexplained CPU fallback at runtime rather than an import
+# error).
 #
-# --ignore-installed (a broader "treat everything already present as
-# absent" flag) was tried first and made things worse: on CentOS Stream
-# 9's older pip (~21.x), it silently dropped the [ctk] extra's own
-# sub-dependencies entirely - nvidia-cuda-nvrtc-cu12 ended up not
-# installed at all, surfacing later as "libnvrtc.so.12: cannot open
-# shared object file" on the first actual kernel compile, past the point
-# gpu_backend.py's own has_gpu() check would have caught it. --upgrade
-# numpy is the narrower, correct fix: forces just numpy past the RPM's
-# version without perturbing extras resolution for anything else.
-RUN pip3 install --no-cache-dir --upgrade "cupy-cuda12x[ctk]" numpy
+# Explicitly installing nvidia-cuda-nvrtc-cu12 (CuPy's JIT kernel
+# compiler) rather than relying on the "cupy-cuda12x[ctk]" extra: on
+# CentOS Stream 9's Python 3.9 (RHEL9-vintage, past upstream CPython
+# EOL), pip resolves to the last cp39-compatible cupy-cuda12x release
+# (13.6.0), which predates the [ctk] extra's introduction - pip printed
+# "does not provide the extra 'ctk'" and silently installed plain CuPy
+# with none of the bundled CUDA wheels, surfacing later as "libnvrtc.so.12:
+# cannot open shared object file" on the first actual kernel compile
+# (past the point gpu_backend.py's own has_gpu() check would catch it).
+# The test script only uses elementwise/reduction ops (sqrt/exp/tanh/sin/
+# cos/sum, no cuBLAS/cuFFT/cuSOLVER), so nvrtc alone covers it.
+RUN pip3 install --no-cache-dir --upgrade cupy-cuda12x nvidia-cuda-nvrtc-cu12 numpy
 
 COPY gpu_pointcloud_test /opt/gpu_pointcloud_ws/src/gpu_pointcloud_test
 
