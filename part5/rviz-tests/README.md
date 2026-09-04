@@ -279,8 +279,10 @@ because the result is meaningfully different, not just a repeat confirmation.
 GPU acceleration is genuinely working here too: `Compute backend: cupy (GPU)` at startup, a first-frame
 JIT-compile warmup (2174ms, the same one-time-cost pattern seen on the conda image), then a steady
 state around **176ms/frame** — about 27% slower per-frame compute than the conda image's 139ms at the
-identical parameters, for reasons not yet isolated (older CUDA toolkit component versions pulled in via
-this image's Python 3.9 environment are the likely factor, but unconfirmed).
+identical parameters. Not the CUDA toolkit version: `cupy.show_config()` on both images shows an
+identical CUDA Build/NVRTC version (12090 / 12.9) — the difference here is CuPy's own version (13.6.0
+here vs. 14.2.0 on conda/Fedora-Lyrical, a consequence of this image's Python 3.9 being too old for
+newer CuPy wheels), or something else about this environment entirely; not isolated further.
 
 It crashed after about 4.5 minutes (~1500 frames), not the 2h53m (4600+ frames) the conda-based image
 ran clean at these same settings. Same fault signature as the earlier heavy-load crash on the conda
@@ -297,16 +299,118 @@ Same recovery behavior too — Xid 43 reset just that process's channel, `nvidia
 immediately after (564MiB used, 20% util, normal temp), no other unusual host activity in the journal
 around that time. A contained fault, not a GPU hang.
 
-**Not yet root-caused.** Plausible contributing factors, unconfirmed: the explicit `cuda-toolkit==12.*`
-version pin here may have pulled a less-tested nvrtc/cudart combination than whatever conda-forge's
-build used, or something specific to the older cp39-compatible CuPy release (13.6.0) this Python 3.9
-environment resolves to. Whether the RT kernel is involved at all remains exactly as untested as it was
-for the conda-based crash — both fired on the same kernel, no standard-kernel comparison has been run.
+**Not yet root-caused.** Checked and ruled out: a direct `cupy.show_config()` comparison against the
+conda image (see the Fedora/Lyrical Test Results section below) shows an *identical* CUDA
+Build/NVRTC version (12090 / 12.9) on both — so a less-tested pip-installed CUDA toolkit component
+version is not the explanation, at least not on its own. What remains unconfirmed: CuPy's own version
+(13.6.0 here, older, forced by this image's Python 3.9), and whether the RT kernel is involved at all,
+which remains exactly as untested as it was for the conda-based crash — both fired on the same kernel,
+no standard-kernel comparison has been run.
 
 **Takeaway:** this image gets real GPU-accelerated compute working, but on this one comparison it's
 noticeably less stable under sustained load than the conda-based image — worth further investigation
 before relying on it the way the conda image's tuned defaults are now trusted. Good evidence the
 architecture works end to end; not yet evidence it's production-ready.
+
+## Test Results: RPM-Based Image (`rviz-pointcloud-lyrical`), Tuned Load Crashed After ~1m54s
+
+Same GPU load test, same tuned parameters (`num_points=200000 gpu_iterations=80 neighbor_sample=800`),
+same host, same RT kernel (`6.12.0-211.51.1.el10_2.x86_64+rt`) — this time on
+`Containerfile.pointcloud-lyrical`, layered on the Fedora + official Copr RPMs image (`rviz-lyrical`)
+instead of Kilted/CentOS Stream 9. Launched via `run-gpu-pointcloud-lyrical.sh` rather than `ros2
+launch`, since this Copr has no `ros2launch` package — see the "Fedora + Lyrical" section above and the
+Containerfile's own comments for why.
+
+GPU acceleration was genuinely working: `cupy (GPU)` backend at startup, a first-frame JIT-compile
+warmup (2352ms, the same one-time-cost pattern seen on the other two images), then a tight, clean steady
+state — **avg 136.8ms/frame, min 133.4ms, max 138.0ms** over the 53 frames it managed before crashing.
+That's actually the *best* per-frame number of the three images so far (vs. the conda image's 139ms and
+the Kilted RPM image's 176ms at the identical parameters) — this crash is not a slow/struggling-GPU
+story, the compute itself was clean and fast right up to the fault.
+
+It crashed after roughly **114 seconds** (container started 17:46:22, last successful frame and the
+kernel fault both logged at 17:48:16) — noticeably faster than the Kilted RPM image's ~4.5 minutes at
+these same settings, and nowhere near the conda image's clean 2h53m run. Identical fault signature to
+both earlier crashes:
+
+```
+NVRM: Xid (PCI:0000:01:00): 13, Graphics SM Warp Exception on (GPC 0, TPC 0): Out Of Range Address
+NVRM: Xid (PCI:0000:01:00): 13, Graphics Exception: ESR 0x504648=0x11d000e 0x504650=0x20 0x504644=0xd3eff2 0x50464c=0x17f
+NVRM: Xid (PCI:0000:01:00): 43, pid=70045, name=gpu_pointcloud_, channel 0x00000028
+```
+
+Same recovery behavior too — Xid 43 reset just that process's channel; `nvidia-smi` was healthy
+immediately after (565MiB, 6% util, normal temp), and the container itself kept running (only the
+backgrounded compute node process died — `rviz2`, running separately in the foreground, was unaffected
+and stayed up). A contained fault, not a GPU hang, consistent with both prior crashes.
+
+**Still not root-caused, but two specific guesses have been checked and ruled out.** This is now the
+*second* RPM-based image to crash under tuned load within minutes, while the conda-forge/RoboStack image
+ran the identical tuned settings clean for nearly 3 hours. Two follow-up checks, both read-only (no
+rebuilding, no bisecting):
+
+- **CUDA toolkit version skew.** `cupy.show_config()` run on all three images shows an *identical* CUDA
+  Build/NVRTC version (12090 / 12.9) across conda, Kilted, and Fedora/Lyrical — and the conda and
+  Fedora/Lyrical images even share the exact same CuPy version (14.2.0). So the pip-installed CUDA
+  toolkit being a "less-tested" or different version than conda-forge's own build is directly
+  contradicted by the data, not just unconfirmed.
+- **Host desktop/GPU contention.** Checked `journalctl` in a window around all three Xid faults (this
+  crash, the Kilted crash, and the original conda heavy-load crash) for `gnome-shell`,
+  `gnome-remote-desktop`, `Xwayland`, or `mutter` activity that might indicate the desktop compositor
+  competing for the P620's 2GB VRAM at the moment of each fault — nothing showed up in any of the three
+  windows.
+- One incidental finding along the way: all three crashes and the 2h53m clean conda run happened within
+  the *same* host boot session (uptime since 11:51:49 that day) — ruling out "the host was in a bad
+  post-reboot state" as well, since the long clean run and both crashes share the same uptime.
+
+What's left unconfirmed, and would require actually building/running something new to check (the point
+where this stops being a bounded, read-only investigation): whether Fedora 44's much newer Python
+(3.14.7, vs. conda's 3.12.14) or glibc (2.43 vs. 2.39) plays any role, and the RT-kernel question, which
+remains exactly as untested as before — all three crashes and the one long clean run happened on the
+same kernel.
+
+**Takeaway:** three images, two dependency-installation paths, and now two crashes with the identical
+fault signature on the pip/RPM path — both notably faster than this same path's own first attempt on
+Kilted. Whatever the actual cause turns out to be, it's reproducible enough now to be worth isolating
+before trusting either RPM-based image for sustained GPU load, even though both demonstrably get real,
+fast GPU compute working right up to the moment they fault.
+
+## Conclusion
+
+Three ROS2 distribution mechanisms were built and tested end to end on this host: RoboStack/conda-forge
+(`rviz-humble`), official RPMs on CentOS Stream 9 (`rviz-kilted`), and Fedora + the robotics-sig's own
+Copr (`rviz-lyrical`). All three get genuine GPU-accelerated `rviz2` rendering and, via
+`gpu_pointcloud_test`, genuine GPU-accelerated compute — this was never in question. What separates them
+is what happened under sustained load:
+
+| Image | Basis | Per-frame (tuned) | Sustained-load result |
+|---|---|---|---|
+| `rviz-pointcloud` | conda-forge/RoboStack | 139ms | Clean for 2h53m (4600+ frames), zero faults |
+| `rviz-pointcloud-rpm` | Kilted RPMs, CentOS Stream 9 | 176ms | Xid 13/43 crash at ~4.5min |
+| `rviz-pointcloud-lyrical` | Fedora + Copr RPMs | 137ms | Xid 13/43 crash at ~114s |
+
+The RPM-based images are the better fit on paper — smaller (Fedora/Lyrical: 2.5GB vs. RoboStack's
+14GB), no conda/micromamba layer, and Fedora/Lyrical in particular needs no EPEL/CodeReady Builder
+wrangling at all. But "on paper" doesn't hold once `gpu_pointcloud_test` actually drives the GPU hard:
+both RPM images faulted with the identical illegal-memory-access signature within minutes, while the
+conda image is the only one of the three with any evidence of standing up to sustained load at all.
+
+**For sustained/production-shaped GPU compute workloads on this hardware, use the conda-forge/RoboStack
+image (`Containerfile`, `rviz-humble`) and its `gpu_pointcloud_test` variant
+(`Containerfile.pointcloud`).** It's the only one of the three with hours of clean runtime behind it —
+everything else here is evidence the other two *can* work, not that they reliably do.
+
+That recommendation is scoped to the compute-heavy case specifically, not to `rviz2` visualization on
+its own — nothing here suggests plain `rviz2` (no `gpu_pointcloud_test` alongside it) is unstable on any
+of the three images; all the observed crashes happened inside `gpu_pointcloud_test`'s CuPy compute path,
+never from `rviz2` rendering by itself. For a lightweight, short-lived, or purely-visualization use case
+where image size and RHEL-friendliness matter more than proven long-run stability, the Fedora/Lyrical
+image is a reasonable, much cleaner alternative — just not yet a validated one for anything that leans
+on the GPU hard for an extended period.
+
+The root cause behind the RPM-path crashes is still open (see both Test Results sections above for what
+was and wasn't ruled out) — this conclusion is a practical recommendation based on the evidence gathered
+so far, not a final diagnosis.
 
 ## Files
 
@@ -331,6 +435,14 @@ architecture works end to end; not yet evidence it's production-ready.
 - **Containerfile.fedora-lyrical**: the Fedora + official Copr RPMs alternative (`rviz-lyrical`) — see
   [above](#fedora--lyrical-official-copr-rpms)
 - **entrypoint-lyrical.sh**: sources `/opt/ros/lyrical/setup.bash`, then execs the given command
+- **Containerfile.pointcloud-lyrical**: `gpu_pointcloud_test` layered on `rviz-lyrical` — see
+  [Test Results](#test-results-rpm-based-image-rviz-pointcloud-lyrical-tuned-load-crashed-after-1m54s)
+  above
+- **entrypoint-pointcloud-lyrical.sh**: same pattern as `entrypoint-lyrical.sh`, plus overlaying the
+  `gpu_pointcloud_test` colcon workspace and the `nvidia-*` wheel library-path discovery it needs
+- **run-gpu-pointcloud-lyrical.sh**: drives the node + `rviz2` directly via `ros2 run`, since this
+  Copr has no `ros2launch` package to provide the `ros2 launch` verb `Containerfile.pointcloud`/
+  `Containerfile.pointcloud-rpm` rely on — see the Containerfile's own comments
 - **nvidia-cdi-setup.md**: how to install `nvidia-container-toolkit` and generate the CDI spec this
   container's GPU passthrough depends on
 - **lenovo-p330-nvidia-fix.md**: how the NVIDIA driver itself was gotten working on this host
