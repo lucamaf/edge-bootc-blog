@@ -34,18 +34,24 @@ RUN dnf install -y \
 # only as an unexplained CPU fallback at runtime rather than an import
 # error).
 #
-# Explicitly installing nvidia-cuda-nvrtc-cu12 (CuPy's JIT kernel
-# compiler) rather than relying on the "cupy-cuda12x[ctk]" extra: on
-# CentOS Stream 9's Python 3.9 (RHEL9-vintage, past upstream CPython
-# EOL), pip resolves to the last cp39-compatible cupy-cuda12x release
-# (13.6.0), which predates the [ctk] extra's introduction - pip printed
-# "does not provide the extra 'ctk'" and silently installed plain CuPy
-# with none of the bundled CUDA wheels, surfacing later as "libnvrtc.so.12:
-# cannot open shared object file" on the first actual kernel compile
-# (past the point gpu_backend.py's own has_gpu() check would catch it).
-# The test script only uses elementwise/reduction ops (sqrt/exp/tanh/sin/
-# cos/sum, no cuBLAS/cuFFT/cuSOLVER), so nvrtc alone covers it.
-RUN pip3 install --no-cache-dir --upgrade cupy-cuda12x nvidia-cuda-nvrtc-cu12 numpy
+# Explicitly installing what the "cupy-cuda12x[ctk]" extra actually
+# resolves to (checked via PyPI's own package metadata for a recent
+# cupy-cuda12x release: cuda-toolkit[cublas,cudart,cufft,curand,cusolver,
+# cusparse,nvrtc]==12.* - NVIDIA's unified metapackage, not the older
+# individually-named nvidia-cuda-nvrtc-cu12/nvidia-cuda-runtime-cu12
+# wheels) rather than relying on the extra itself: on CentOS Stream 9's
+# Python 3.9 (RHEL9-vintage, past upstream CPython EOL), pip resolves to
+# the last cp39-compatible cupy-cuda12x release (13.6.0), which predates
+# the [ctk] extra's introduction entirely - pip printed "does not provide
+# the extra 'ctk'" and silently installed plain CuPy with none of the
+# bundled CUDA components. Installing just nvidia-cuda-nvrtc-cu12 (the
+# compiler .so) got further but then failed on "Failed to auto-detect
+# CUDA root directory" - CuPy also needs the headers (cudart) to assemble
+# its JIT compile flags, not just the compiler library.
+RUN pip3 install --no-cache-dir --upgrade \
+    cupy-cuda12x \
+    "cuda-toolkit[cublas,cudart,cufft,curand,cusolver,cusparse,nvrtc]==12.*" \
+    numpy
 
 COPY gpu_pointcloud_test /opt/gpu_pointcloud_ws/src/gpu_pointcloud_test
 
