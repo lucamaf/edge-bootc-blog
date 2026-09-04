@@ -1,0 +1,54 @@
+# tagged as quay.io/luferrar/part5:rviz-pointcloud-rpm
+#
+# gpu_pointcloud_test (../gpu_pointcloud_test/), same package as
+# Containerfile.pointcloud, but layered on the official-RPM Kilted image
+# (quay.io/luferrar/part5:rviz-kilted) instead of RoboStack/conda-forge -
+# the RPM equivalent of Containerfile.pointcloud, the same way
+# Containerfile.ros2-rpm is the RPM equivalent of the base Containerfile.
+#
+# Layered on rviz-kilted directly (unlike Containerfile.pointcloud, which
+# rebuilds from scratch to trim ros-humble-desktop's bloat): ros-kilted-desktop
+# is already lean via RPMs (6GB vs ros-humble-desktop's 14GB), so there's no
+# equivalent "trim to ros-base" win to chase here.
+#
+# Build context is the PARENT directory (part5/), same reason as
+# Containerfile.pointcloud - needs to reach the sibling gpu_pointcloud_test/
+# package:
+#
+#   podman build -t quay.io/luferrar/part5:rviz-pointcloud-rpm \
+#     -f rviz-tests/Containerfile.pointcloud-rpm part5/
+FROM quay.io/luferrar/part5:rviz-kilted
+
+# python3-colcon-common-extensions/python3-pip/python3-setuptools are from
+# the same official install guide as ros-kilted-desktop itself
+# (docs.ros.org's RHEL-Install-RPMs page's "optional dev tools" list).
+RUN dnf install -y \
+    python3-colcon-common-extensions \
+    python3-pip \
+    python3-setuptools \
+    && dnf clean all
+
+# cupy-cuda12x for the GPU backend ([ctk] bundles the CUDA headers/nvrtc
+# CuPy needs to JIT-compile its kernels). Falls back to NumPy/CPU
+# automatically at runtime if this or the GPU isn't usable.
+RUN pip3 install --no-cache-dir "cupy-cuda12x[ctk]"
+
+COPY gpu_pointcloud_test /opt/gpu_pointcloud_ws/src/gpu_pointcloud_test
+
+# Plain install, not --symlink-install: for ament_python packages that flag
+# shells out to the legacy "setup.py develop --editable" mechanism, which
+# recent setuptools has dropped (same issue hit in Containerfile.pointcloud).
+RUN source /opt/ros/kilted/setup.bash && \
+    cd /opt/gpu_pointcloud_ws && \
+    colcon build --packages-select gpu_pointcloud_test
+
+COPY entrypoint-pointcloud-rpm.sh /usr/local/bin/entrypoint-pointcloud-rpm.sh
+RUN chmod +x /usr/local/bin/entrypoint-pointcloud-rpm.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-pointcloud-rpm.sh"]
+
+# Same tuned parameters as Containerfile.pointcloud's default - see
+# README's "Test Results" section for the P620-specific reasoning/numbers
+# behind these values.
+CMD ["ros2", "launch", "gpu_pointcloud_test", "gpu_pointcloud.launch.py", \
+     "num_points:=200000", "gpu_iterations:=80", "neighbor_sample:=800"]
