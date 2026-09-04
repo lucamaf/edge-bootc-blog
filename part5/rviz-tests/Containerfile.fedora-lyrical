@@ -27,7 +27,7 @@
 # GLX/X11 independent of what platform Qt itself runs under. No evidence
 # yet that Lyrical's rviz-ogre-vendor differs, so this defaults to xcb the
 # same way, pending an actual test.
-FROM fedora:44
+FROM registry.fedoraproject.org/fedora:44
 
 RUN dnf install -y dnf-plugins-core \
     && dnf copr enable -y hellaenergy/ros2 \
@@ -37,6 +37,17 @@ RUN dnf install -y dnf-plugins-core \
 # GPU rendering - same rationale as this directory's other images (see
 # Containerfile). The NVIDIA driver itself is NOT installed here - it's
 # injected at runtime via --device nvidia.com/gpu=all (CDI).
+#
+# yaml-cpp: librviz_common.so links directly against libyaml-cpp.so.0.8
+# (confirmed via ldd), but none of the hellaenergy/ros2 Copr's rviz RPMs
+# (rviz2, rviz-common, rviz-rendering, rviz-ogre-vendor,
+# rviz-default-plugins) declare it as a Requires - a packaging omission in
+# that Copr, not a Fedora/dnf weak-deps issue (dnf.conf here has no
+# install_weak_deps setting, and the missing Requires is absent even from
+# each package's raw installed RPM metadata, not just filtered by weak-deps
+# skipping). Fedora's own stable repo ships the exact soname needed
+# (yaml-cpp-0.8.0-5.fc44), so installing it explicitly is enough - no need
+# for the ROS-specific ros-lyrical-yaml-cpp-vendor package.
 RUN dnf install -y \
     mesa-libGL \
     mesa-libEGL \
@@ -53,6 +64,7 @@ RUN dnf install -y \
     fontconfig \
     dbus-libs \
     glx-utils \
+    yaml-cpp \
     && dnf clean all
 
 # ros-lyrical-ros-desktop includes rviz2 - see the header comment for how
