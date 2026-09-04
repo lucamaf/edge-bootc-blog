@@ -21,11 +21,15 @@
 # already been proven to work.
 FROM quay.io/centos/centos:stream9
 
-# EPEL + CodeReady Builder (CRB), exactly per the install guide.
+# EPEL + CodeReady Builder (CRB), exactly per the install guide - except
+# curl: the base image already ships curl-minimal, which conflicts with
+# (rather than coexists with) the full curl package on a plain "dnf install
+# curl" (needs an explicit swap/--allowerasing to replace it). We only need
+# curl for a trivial HTTPS GET below, which curl-minimal already handles,
+# so it's simplest to just not install the full package at all.
 RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-$(rpm -E %rhel).noarch.rpm \
     && dnf install -y dnf-plugins-core \
     && dnf config-manager --set-enabled crb \
-    && dnf install -y curl \
     && dnf clean all
 
 # The ROS2 apt-source RPM registers the actual ros-infrastructure yum repo.
@@ -65,12 +69,6 @@ RUN dnf install -y ros-kilted-desktop \
 COPY entrypoint-kilted.sh /usr/local/bin/entrypoint-kilted.sh
 COPY check-gpu.sh /usr/local/bin/check-gpu.sh
 RUN chmod +x /usr/local/bin/entrypoint-kilted.sh /usr/local/bin/check-gpu.sh
-
-# Unlike the RoboStack images, no blanket chmod pass is needed here for the
-# arbitrary --user UID at runtime (see run-rviz-test.sh): RPM-installed
-# files keep their package-declared permissions (standard 644/755), already
-# world-readable, rather than whatever a conda env's install process leaves
-# behind.
 
 ENV HOME=/tmp
 ENV QT_QPA_PLATFORM=xcb
