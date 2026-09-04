@@ -42,7 +42,7 @@ RUN source /opt/ros/kilted/setup.bash && \
     cd /opt/gpu_pointcloud_ws && \
     colcon build --packages-select gpu_pointcloud_test
 
-COPY entrypoint-pointcloud-rpm.sh /usr/local/bin/entrypoint-pointcloud-rpm.sh
+COPY rviz-tests/entrypoint-pointcloud-rpm.sh /usr/local/bin/entrypoint-pointcloud-rpm.sh
 RUN chmod +x /usr/local/bin/entrypoint-pointcloud-rpm.sh
 
 ENTRYPOINT ["/usr/local/bin/entrypoint-pointcloud-rpm.sh"]
