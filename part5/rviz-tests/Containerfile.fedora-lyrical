@@ -69,7 +69,12 @@ RUN dnf install -y \
 
 # ros-lyrical-ros-desktop includes rviz2 - see the header comment for how
 # that was confirmed against the actual Copr package list.
-RUN dnf install -y ros-lyrical-ros-desktop \
+#
+# ros-lyrical-std-srvs: rviz2 fails at dlopen with
+# "libstd_srvs__rosidl_typesupport_cpp.so: cannot open shared object file"
+# without it, same class of issue as the yaml-cpp fix above (a runtime
+# dependency the Copr's rviz/rviz2 RPMs don't declare as an RPM Requires).
+RUN dnf install -y ros-lyrical-ros-desktop ros-lyrical-std-srvs \
     && dnf clean all
 
 COPY entrypoint-lyrical.sh /usr/local/bin/entrypoint-lyrical.sh
