@@ -1,0 +1,88 @@
+# tagged as quay.io/luferrar/part5:rviz-pointcloud
+#
+# gpu_pointcloud_test (../gpu_pointcloud_test/) - standalone, NOT layered on
+# rviz-humble. That image installs ros-humble-desktop (14GB), most of which
+# (rqt, demo nodes, turtlesim, teleop packages, ...) this test never touches.
+# gpu_pointcloud_test's own README documents the actual split: rviz2 isn't in
+# ros-base, only in the full desktop metapackage - so ros-base + rviz2 is all
+# that's actually needed here. The Ogre/Qt cost of rviz2 itself is
+# unavoidable for GPU visualization either way; this just drops desktop's
+# unrelated bulk on top of it.
+#
+# Same X11/GPU passthrough setup as the other rviz-tests images (see
+# Containerfile for the full rationale on RoboStack vs RPMs, and X11/XWayland
+# vs Wayland) - just a smaller ROS2 package selection.
+#
+# Build context is the PARENT directory (part5/), to reach the sibling
+# gpu_pointcloud_test/ package:
+#
+#   podman build -t quay.io/luferrar/part5:rviz-pointcloud \
+#     -f rviz-tests/Containerfile.pointcloud part5/
+FROM registry.access.redhat.com/ubi10/ubi:latest
+
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm \
+    && dnf clean all
+
+RUN dnf install -y \
+    ca-certificates \
+    curl \
+    mesa-libGL \
+    mesa-libEGL \
+    libglvnd \
+    libglvnd-egl \
+    libglvnd-glx \
+    libxkbcommon \
+    libxcb \
+    libX11 \
+    libXext \
+    libXrender \
+    libSM \
+    libICE \
+    fontconfig \
+    dbus-libs \
+    glx-utils \
+    && dnf clean all
+
+ENV MAMBA_ROOT_PREFIX=/opt/conda
+RUN curl -fsSL -o /usr/local/bin/micromamba \
+    https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64 \
+    && chmod +x /usr/local/bin/micromamba
+
+# ros-base + rviz2 + ros2launch (ros2launch is normally already pulled in by
+# ros-base, but gpu_pointcloud_test's package.xml declares it explicitly, so
+# named here too for certainty) + colcon/pip to build and run the package.
+RUN micromamba create -y -n ros_env -c conda-forge -c robostack-humble \
+    ros-humble-ros-base \
+    ros-humble-rviz2 \
+    ros-humble-ros2launch \
+    colcon-common-extensions \
+    pip \
+    && micromamba clean -y -a
+
+# cupy-cuda12x for the GPU backend ([ctk] bundles the CUDA headers/nvrtc
+# CuPy needs to JIT-compile its kernels). Falls back to NumPy/CPU
+# automatically at runtime if this or the GPU isn't usable.
+RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
+    pip install --no-cache-dir "cupy-cuda12x[ctk]"
+
+COPY gpu_pointcloud_test /opt/gpu_pointcloud_ws/src/gpu_pointcloud_test
+
+RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
+    cd /opt/gpu_pointcloud_ws && \
+    colcon build --packages-select gpu_pointcloud_test --symlink-install
+
+RUN chmod -R a+rX /opt/conda /opt/gpu_pointcloud_ws
+
+COPY rviz-tests/entrypoint-pointcloud.sh /usr/local/bin/entrypoint-pointcloud.sh
+COPY rviz-tests/check-gpu.sh /usr/local/bin/check-gpu.sh
+RUN chmod +x /usr/local/bin/entrypoint-pointcloud.sh /usr/local/bin/check-gpu.sh
+
+ENV HOME=/tmp
+ENV QT_QPA_PLATFORM=xcb
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+ENV NVIDIA_VISIBLE_DEVICES=all
+
+WORKDIR /opt
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-pointcloud.sh"]
+CMD ["ros2", "launch", "gpu_pointcloud_test", "gpu_pointcloud.launch.py"]

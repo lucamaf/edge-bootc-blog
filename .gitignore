@@ -17,6 +17,7 @@ vidireports.sh
 virsh-start.sh
 .rhc*
 tailscale-login.service
+gpu_pointcloud_test
 
 #Plugfest file
 Plugfest/
