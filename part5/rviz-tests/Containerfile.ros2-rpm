@@ -43,6 +43,12 @@ RUN ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastruc
 # though the standalone Xorg server is gone). The NVIDIA driver itself is
 # NOT installed here - injected at runtime via --device nvidia.com/gpu=all
 # (CDI).
+#
+# qt5-qtwayland: unlike RoboStack/conda-forge's Qt build (which has no
+# wayland platform plugin at all, confirmed unbuildable there), this RPM
+# exists on CentOS Stream 9's own AppStream repo - worth trying for native
+# Wayland instead of going through XWayland. ros-kilted-desktop doesn't
+# pull it in on its own.
 RUN dnf install -y \
     mesa-libGL \
     mesa-libEGL \
@@ -56,6 +62,7 @@ RUN dnf install -y \
     libXrender \
     libSM \
     libICE \
+    qt5-qtwayland \
     fontconfig \
     dbus-libs \
     glx-utils \
