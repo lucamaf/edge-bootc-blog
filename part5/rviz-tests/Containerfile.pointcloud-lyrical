@@ -43,12 +43,16 @@ RUN source /opt/ros/lyrical/setup.bash && \
     colcon build --packages-select gpu_pointcloud_test
 
 COPY rviz-tests/entrypoint-pointcloud-lyrical.sh /usr/local/bin/entrypoint-pointcloud-lyrical.sh
-RUN chmod +x /usr/local/bin/entrypoint-pointcloud-lyrical.sh
+COPY rviz-tests/run-gpu-pointcloud-lyrical.sh /usr/local/bin/run-gpu-pointcloud-lyrical.sh
+RUN chmod +x /usr/local/bin/entrypoint-pointcloud-lyrical.sh /usr/local/bin/run-gpu-pointcloud-lyrical.sh
 
 ENTRYPOINT ["/usr/local/bin/entrypoint-pointcloud-lyrical.sh"]
 
-# Same tuned parameters as the other two pointcloud images' default - see
+# Not `ros2 launch gpu_pointcloud_test gpu_pointcloud.launch.py ...` like
+# the other two pointcloud images - this Copr has no ros2launch package, so
+# run-gpu-pointcloud-lyrical.sh drives the same two processes directly via
+# `ros2 run`. Same tuned parameters as the other two images' default - see
 # README's "Test Results" section for the P620-specific reasoning/numbers
 # behind these values.
-CMD ["ros2", "launch", "gpu_pointcloud_test", "gpu_pointcloud.launch.py", \
+CMD ["/usr/local/bin/run-gpu-pointcloud-lyrical.sh", \
      "num_points:=200000", "gpu_iterations:=80", "neighbor_sample:=800"]
