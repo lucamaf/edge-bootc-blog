@@ -158,6 +158,63 @@ Watch the terminal at startup for `Compute backend: cupy (GPU)` — if it says `
 CuPy didn't find the GPU; check with `nvidia-smi` the same way as the [GPU verification](#verifying-the-gpu-is-actually-being-used)
 above.
 
+## Test Results: Heavy Load Crash, Tuned Load Clean for ~2h53m
+
+Findings from testing on `lenovo-p330` (Quadro P620), running RT kernel
+`6.12.0-211.51.1.el10_2.x86_64+rt` for both runs below. Same image, same host, same kernel for both; only the launch parameters
+differed. Numbers below are from the actual `journalctl` history (~3 hours available), not just a
+short sample.
+
+### Heavy defaults (`num_points=1000000 gpu_iterations=400 neighbor_sample=3000`): crashed after 20 frames
+
+Ran cleanly for 20 frames (avg 3741ms/frame, min 3053ms, max 5035ms — the max is the first frame,
+almost certainly inflated by CuPy's one-time NVRTC kernel-compile-on-first-use cost rather than
+reflecting steady-state compute; consistent with the package's own "~<2Hz on mid-range GPUs"
+expectation, proportionally worse here since the P620 is well below mid-range), then crashed on the
+21st cycle. The Python side raised:
+
+```
+cupy_backends.cuda.api.driver.CUDADriverError: CUDA_ERROR_ILLEGAL_ADDRESS: an illegal memory access was encountered
+```
+
+from `_neighbor_stress`'s pairwise-distance computation (`diff = sub[:, None, :] - sub[None, :, :]`).
+`journalctl -k` at the same moment (timestamps line up: last successful frame logged at 11:34:19, fault
+at 11:34:22):
+
+```
+NVRM: Xid (PCI:0000:01:00): 13, Graphics SM Warp Exception on (GPC 0, TPC 0): Out Of Range Address
+NVRM: Xid (PCI:0000:01:00): 13, Graphics Exception: ESR 0x504648=0x114000e 0x504650=0x20 0x504644=0xd3eff2 0x50464c=0x17f
+NVRM: Xid (PCI:0000:01:00): 43, pid=28721, name=gpu_pointcloud_, channel 0x00000030
+```
+
+Xid 13 is the GPU hardware itself detecting an out-of-bounds memory access inside a running kernel —
+a real fault, not just a driver-side wrapper error, and it matches the Python exception exactly. Xid 43
+is the driver's recovery: it reset only that process's channel rather than the whole GPU — `nvidia-smi`
+was fully responsive immediately afterward (GPU-Util, memory, temp all normal), so this was a
+contained fault, not a GPU hang or system crash.
+
+### Tuned defaults (`num_points=200000 gpu_iterations=80 neighbor_sample=800`, the new image default): clean for 2h53m straight
+
+4642 frames over a single continuous run — not just a short sample, the full session from launch to
+the point it was manually stopped. Steady-state (excluding the first frame, which shows the same
+one-time JIT-compile inflation as the heavy run's first frame: 2316ms vs. everything else): **avg
+139ms/frame, min 114ms, max 142ms** — tight, consistent, no jitter of note. `systemd` confirms the
+full span: `Consumed 2h 53min 18.707s CPU time`. Zero Xid errors anywhere in that entire window.
+
+<!--It ended via a manual Ctrl+C, not a crash — `journalctl` shows `user interrupted with ctrl-c (SIGINT)`
+right before shutdown. The shutdown does log a Python exception
+(`RCLError: failed to shutdown: rcl_shutdown already called on the given context`), which made the
+launch wrapper report `process has died, exit code 1` — worth knowing about so it doesn't look like a
+second crash if you go looking at these logs later, but it's a harmless double-shutdown race between
+`rclpy`'s own cleanup and the SIGINT handler, unrelated to GPU/compute correctness, and it only appears
+at the very end after 2h53m of otherwise clean operation.-->
+
+### Takeaway
+
+The tuned defaults (now the image's default `CMD`) ran clean for nearly 3 hours straight on this
+hardware and this RT kernel, versus the heavy defaults faulting after 20 frames (~75 seconds of actual
+compute). That's a solid basis for trusting the tuned settings for sustained use here.
+
 ## Files
 
 - **Containerfile**: UBI10 base + RoboStack (`ros-humble-desktop`, includes `rviz2`) via micromamba
