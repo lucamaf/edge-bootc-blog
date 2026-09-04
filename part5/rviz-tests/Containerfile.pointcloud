@@ -90,4 +90,13 @@ ENV NVIDIA_VISIBLE_DEVICES=all
 WORKDIR /opt
 
 ENTRYPOINT ["/usr/local/bin/entrypoint-pointcloud.sh"]
-CMD ["ros2", "launch", "gpu_pointcloud_test", "gpu_pointcloud.launch.py"]
+
+# Tuned down from the package's own defaults (num_points=1000000
+# gpu_iterations=400 neighbor_sample=3000, ~3.7s/frame measured on this
+# Quadro P620 - a low-end 2GB card, well below the "mid-range GPU" the
+# package's README calibrates its defaults against) for a smooth default
+# experience on this hardware. See README's "Tuning for a low-end GPU"
+# section for the reasoning and how to override back to the heavy settings
+# for RT-interference stress testing instead of smooth visualization.
+CMD ["ros2", "launch", "gpu_pointcloud_test", "gpu_pointcloud.launch.py", \
+     "num_points:=200000", "gpu_iterations:=80", "neighbor_sample:=800"]
