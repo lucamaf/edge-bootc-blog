@@ -1,14 +1,19 @@
 #!/bin/bash
 # Launches the rviz-tests container on the HOST (the RHEL10 box with the
 # Quadro P620), passing through the GPU via nvidia-container-toolkit/CDI
-# (see nvidia-cdi-setup.md) and the GUI via X11/XWayland.
+# (see nvidia-cdi-setup.md) and the GUI via X11/XWayland or Wayland.
 #
-# X11, not Wayland: RoboStack/conda-forge's Qt build for ros-humble-desktop
+# Both socket types are mounted unconditionally (Wayland's is best-effort -
+# not every image needs it); which one actually gets used is up to each
+# image's own QT_QPA_PLATFORM default in its Containerfile, not this script
+# - it used to hardcode -e QT_QPA_PLATFORM=xcb here, overriding whatever the
+# image itself set. RoboStack/conda-forge's Qt build for ros-humble-desktop
 # has no "wayland" platform plugin at all (confirmed by Qt's own error
-# listing its available plugins - xcb was the only relevant one present),
-# so Wayland passthrough can't work with this toolchain regardless of host
-# setup. xcb connects to XWayland, which RHEL10 keeps specifically for X11
-# app compatibility even though the standalone Xorg server is gone.
+# listing available plugins, xcb only), so those images stay on xcb/
+# XWayland; quay.io/luferrar/part5:rviz-kilted's RPM-packaged Qt does have a
+# working wayland plugin (via the separate qt5-qtwayland package) - once
+# end-to-end rendering through it is actually confirmed, that image's own
+# Containerfile default can move to wayland instead of xcb.
 #
 # Usage:
 #   ./run-rviz-test.sh [image] -- [command...]
@@ -67,6 +72,23 @@ if command -v xhost > /dev/null 2>&1; then
     xhost +local: > /dev/null 2>&1 || true
 fi
 
+# Best-effort Wayland socket mount, alongside X11/XWayland above - not
+# every image can use it (see header), but it's harmless to mount for the
+# ones that don't. Same $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY resolution this
+# script used back when Wayland was the only path it supported.
+XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
+WAYLAND_SOCKET="$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+
+WAYLAND_MOUNT=()
+if [ -S "$WAYLAND_SOCKET" ]; then
+    WAYLAND_MOUNT=(
+        -e XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR"
+        -e WAYLAND_DISPLAY="$WAYLAND_DISPLAY"
+        -v "$WAYLAND_SOCKET:$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+    )
+fi
+
 echo "Image:      $IMAGE"
 echo "DISPLAY:    $DISPLAY"
 echo "Running as: $(id -u):$(id -g)"
@@ -78,10 +100,10 @@ exec podman run --rm -it \
     -e NVIDIA_DRIVER_CAPABILITIES=all \
     -e NVIDIA_VISIBLE_DEVICES=all \
     -e DISPLAY="$DISPLAY" \
-    -e QT_QPA_PLATFORM=xcb \
     -v /tmp/.X11-unix:/tmp/.X11-unix \
     -v /etc/passwd:/etc/passwd:ro \
     "${XAUTH_MOUNT[@]}" \
+    "${WAYLAND_MOUNT[@]}" \
     --user "$(id -u):$(id -g)" \
     --security-opt label=disable \
     "$IMAGE" "$@"
