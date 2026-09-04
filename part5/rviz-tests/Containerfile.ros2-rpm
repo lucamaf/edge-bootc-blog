@@ -1,0 +1,83 @@
+# tagged as quay.io/luferrar/part5:rviz-kilted
+#
+# Alternative to the RoboStack-based images in this directory: ROS2 Kilted
+# via the OFFICIAL RPM channel (ros-infrastructure/ros-apt-source, per
+# https://docs.ros.org/en/kilted/Installation/RHEL-Install-RPMs.html), not
+# conda-forge/RoboStack. Checked directly against the docs source for all
+# three current distros: Humble's official RPMs only target RHEL 8, Jazzy
+# and Kilted target RHEL 9 - no current ROS2 distro's official RPM channel
+# targets RHEL 10 at all. Kilted (newest) + RHEL 9 is the closest match.
+#
+# CentOS Stream 9, not UBI9: the install guide's "crb enable" is the CentOS
+# Stream/RHEL-proper way to enable the CodeReady Builder repo; UBI9 names
+# the equivalent repo differently (ubi-9-codeready-builder-rpms via dnf
+# config-manager --set-enabled), which isn't what these upstream
+# instructions are written against. Runs fine via podman on the RHEL10 host
+# regardless - containers aren't tied to the host's OS version, and Stream
+# 9's glibc/library generation is much closer to RHEL10's than an EL8 base
+# would be, which matters for whether the CDI-mounted NVIDIA driver
+# libraries (built matching the host's 580.xx driver) load correctly - that
+# boundary is unverified here, unlike the UBI10+RoboStack images where it's
+# already been proven to work.
+FROM quay.io/centos/centos:stream9
+
+# EPEL + CodeReady Builder (CRB), exactly per the install guide.
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-$(rpm -E %rhel).noarch.rpm \
+    && dnf install -y dnf-plugins-core \
+    && dnf config-manager --set-enabled crb \
+    && dnf install -y curl \
+    && dnf clean all
+
+# The ROS2 apt-source RPM registers the actual ros-infrastructure yum repo.
+RUN ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F'"' '{print $4}') \
+    && dnf install -y "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-release-${ROS_APT_SOURCE_VERSION}-1.noarch.rpm" \
+    && dnf clean all
+
+# X11/XWayland + GL/EGL dispatch libraries for Qt's xcb platform plugin and
+# GPU rendering - same rationale as this directory's other images (see
+# Containerfile: RHEL10 keeps XWayland for X11 app compatibility even
+# though the standalone Xorg server is gone). The NVIDIA driver itself is
+# NOT installed here - injected at runtime via --device nvidia.com/gpu=all
+# (CDI).
+RUN dnf install -y \
+    mesa-libGL \
+    mesa-libEGL \
+    libglvnd \
+    libglvnd-egl \
+    libglvnd-glx \
+    libxkbcommon \
+    libxcb \
+    libX11 \
+    libXext \
+    libXrender \
+    libSM \
+    libICE \
+    fontconfig \
+    dbus-libs \
+    glx-utils \
+    && dnf clean all
+
+# ros-kilted-desktop includes rviz2 (per that package's own description:
+# "ROS, RViz, demos, tutorials"), rather than the smaller ros-kilted-ros-base.
+RUN dnf install -y ros-kilted-desktop \
+    && dnf clean all
+
+COPY entrypoint-kilted.sh /usr/local/bin/entrypoint-kilted.sh
+COPY check-gpu.sh /usr/local/bin/check-gpu.sh
+RUN chmod +x /usr/local/bin/entrypoint-kilted.sh /usr/local/bin/check-gpu.sh
+
+# Unlike the RoboStack images, no blanket chmod pass is needed here for the
+# arbitrary --user UID at runtime (see run-rviz-test.sh): RPM-installed
+# files keep their package-declared permissions (standard 644/755), already
+# world-readable, rather than whatever a conda env's install process leaves
+# behind.
+
+ENV HOME=/tmp
+ENV QT_QPA_PLATFORM=xcb
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+ENV NVIDIA_VISIBLE_DEVICES=all
+
+WORKDIR /opt
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-kilted.sh"]
+CMD ["rviz2"]
