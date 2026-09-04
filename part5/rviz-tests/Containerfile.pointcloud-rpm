@@ -30,8 +30,16 @@ RUN dnf install -y \
 
 # cupy-cuda12x for the GPU backend ([ctk] bundles the CUDA headers/nvrtc
 # CuPy needs to JIT-compile its kernels). Falls back to NumPy/CPU
-# automatically at runtime if this or the GPU isn't usable.
-RUN pip3 install --no-cache-dir "cupy-cuda12x[ctk]"
+# automatically at runtime if this or the GPU isn't usable - which is
+# exactly what silently happened here without --ignore-installed: pip saw
+# CentOS Stream 9's RPM-packaged python3-numpy as "already satisfying"
+# CuPy's numpy dependency and left it alone, but that RPM numpy predates
+# the numpy._typing submodule CuPy's code imports, so CuPy's own import
+# failed with ModuleNotFoundError - silently caught by gpu_backend.py's
+# bare except, surfacing only as an unexplained CPU fallback at runtime.
+# --ignore-installed forces pip to install its own compatible numpy rather
+# than trusting the system RPM one.
+RUN pip3 install --no-cache-dir --ignore-installed "cupy-cuda12x[ctk]"
 
 COPY gpu_pointcloud_test /opt/gpu_pointcloud_ws/src/gpu_pointcloud_test
 
