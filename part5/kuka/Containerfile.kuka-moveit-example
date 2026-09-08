@@ -66,28 +66,35 @@ RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
     make \
     ninja \
     pkg-config \
-    grpc-cpp \
-    libprotobuf \
     && micromamba clean -y -a \
     && chmod -R a+rX /opt/conda
 
-# kuka_external_control_sdk (the "iiqka" client library, gRPC-based) needs:
-#  - grpc-cpp/libprotobuf above (conda-forge, same ABI-consistency reasoning
-#    as compilers) - its CMakeLists.txt does `pkg_check_modules(gRPC
-#    REQUIRED grpc++)`, findable via pkg-config once grpc-cpp is installed.
-#  - its protobuf_generate() call for the grpc plugin hardcodes
-#    PLUGIN="protoc-gen-grpc=/usr/bin/grpc_cpp_plugin" (confirmed directly
-#    in iiqka/CMakeLists.txt - not a configurable option), but conda-forge's
-#    grpc-cpp installs it at /opt/conda/envs/ros_env/bin/grpc_cpp_plugin -
-#    the symlink below bridges that upstream-hardcoded path.
-#  - openssl-devel (dnf, not conda-forge): OpenSSL is a stable C ABI, not
-#    C++, so unlike grpc/protobuf there's no ABI-consistency reason to
-#    prefer conda-forge's build over the system one here.
-RUN dnf install -y \
+# kuka_external_control_sdk (the "iiqka" client library) needs grpc++ (its
+# CMakeLists.txt does `pkg_check_modules(gRPC REQUIRED grpc++)`) and a
+# grpc_cpp_plugin binary at the hardcoded path
+# /usr/bin/grpc_cpp_plugin (protobuf_generate()'s PLUGIN argument in
+# iiqka/CMakeLists.txt - not configurable). Tried conda-forge's grpc-cpp
+# first, but its libprotobuf requirement (<3.22, the whole feedstock has
+# lagged behind rebuilding against newer protobuf majors) directly
+# conflicts with ros-humble-moveit-visual-tools' own pin (via
+# ros2-distro-mutex) to a much newer libprotobuf (5.x/6.x) - protobuf 3.x
+# and 5.x/6.x generated code isn't interchangeable, so this isn't a
+# version to force past. dnf's grpc-devel (confirmed present for RHEL10 at
+# 1.48.4-44.el10_0, same EPEL10 CRB-adjacent repo Containerfile.rviz-
+# pointcloud already enables) sidesteps the conflict entirely - nothing
+# else in this build touches protobuf/grpc, so there's no ABI-consistency
+# reason to prefer conda-forge here the way there was for the C/C++
+# compiler itself. grpc-plugins is the RPM subpackage that installs
+# grpc_cpp_plugin, and it lands at exactly /usr/bin/grpc_cpp_plugin -
+# matching the hardcoded path with no symlink needed. grpc-devel's own
+# Requires resolves pkgconfig(protobuf) (i.e. protobuf-devel) automatically.
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm \
+    && dnf install -y \
     git \
     openssl-devel \
-    && dnf clean all \
-    && ln -sf /opt/conda/envs/ros_env/bin/grpc_cpp_plugin /usr/bin/grpc_cpp_plugin
+    grpc-devel \
+    grpc-plugins \
+    && dnf clean all
 
 RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
     mkdir -p /opt/kuka_ws/src && cd /opt/kuka_ws/src && \
