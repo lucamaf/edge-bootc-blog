@@ -1,15 +1,5 @@
 # tagged as quay.io/luferrar/part5:kuka-moveit-example
 #
-# Tests https://github.com/kroshu/examples' moveit_example (KUKA iiQKA
-# driver + MoveIt 2) against this project's RHEL10 RT-kernel setup, without
-# real KUKA hardware attached - purely to check whether the driver stack
-# itself (kuka_drivers, the RT control_node with its cpu_affinity/
-# thread_priority/mlockall options, and MoveIt) builds and runs cleanly on
-# RHEL10, using KUKA's own purpose-built mock hardware plugin
-# (kuka_mock_hardware_interface, selected via mode:=mock in the URDF) in
-# place of the real iiQKA network driver. This validates the ROS2/build/RT
-# side of the stack, not real robot communication (RSI/EAC network I/O).
-#
 # Layered on rviz-humble (RoboStack/conda-forge, ROS2 Humble).
 #
 # Four source repos, three different branches - none of the KUKA repos
@@ -62,6 +52,10 @@ RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
     && micromamba clean -y -a \
     && chmod -R a+rX /opt/conda
 
+RUN dnf install -y \
+    git \
+    && dnf clean all
+
 RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
     mkdir -p /opt/kuka_ws/src && cd /opt/kuka_ws/src && \
     git clone --branch humble --depth 1 https://github.com/kroshu/kuka_drivers.git && \
@@ -81,9 +75,6 @@ ENTRYPOINT ["/usr/local/bin/entrypoint-kuka.sh"]
 # The self-contained mock-hardware entry point, lives in
 # kuka_lbr_iisy_moveit_config (not moveit_example itself), and hardcodes
 # mode:="mock" internally (via kuka_resources' shared
-# fake_hardware_planning_template.launch.py). Run one of moveit_example's own
-# planning nodes (e.g. `ros2 run moveit_example
-# moveit_basic_planners_example`) in a second terminal against this to
-# actually exercise motion planning through the stack.
+# fake_hardware_planning_template.launch.py). 
 CMD ["ros2", "launch", "kuka_lbr_iisy_moveit_config", \
      "moveit_planning_fake_hardware.launch.py", "robot_model:=lbr_iisy3_r760"]
