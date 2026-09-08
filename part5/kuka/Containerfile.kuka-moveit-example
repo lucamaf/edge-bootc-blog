@@ -1,6 +1,47 @@
 # tagged as quay.io/luferrar/part5:kuka-moveit-example
 #
-# Layered on rviz-humble (RoboStack/conda-forge, ROS2 Humble).
+# Tests https://github.com/kroshu/examples' moveit_example (KUKA iiQKA
+# driver + MoveIt 2) against this project's RHEL10 RT-kernel setup, without
+# real KUKA hardware attached - purely to check whether the driver stack
+# itself (kuka_drivers, the RT control_node with its cpu_affinity/
+# thread_priority/mlockall options, and MoveIt) builds and runs cleanly on
+# RHEL10, using KUKA's own purpose-built mock hardware plugin
+# (kuka_mock_hardware_interface, selected via mode:=mock in the URDF) in
+# place of the real iiQKA network driver. This validates the ROS2/build/RT
+# side of the stack, not real robot communication (RSI/EAC network I/O).
+#
+# Standalone (CentOS Stream 10 + RoboStack), NOT layered on rviz-humble
+# (UBI10-based) - this originally WAS layered on rviz-humble, but that hit
+# a real dead end: kuka_external_control_sdk needs grpc++/protobuf
+# (pkg_check_modules(gRPC REQUIRED grpc++) in its CMakeLists.txt), and:
+#   - conda-forge's own grpc-cpp feedstock is capped at 1.51.1 (confirmed
+#     against the actual linux-64 repodata, not just anaconda.org's
+#     possibly-stale "latest_version" field), which needs libprotobuf
+#     <3.22 - directly incompatible with robostack-humble's own pin (via
+#     ros2-distro-mutex) to libprotobuf 5.x/6.x. Protobuf 3.x and 5.x/6.x
+#     generated code isn't interchangeable, so this isn't a version to
+#     force past.
+#   - RHEL10's own protobuf-devel/protobuf-compoiler (3.19.6, which
+#     grpc-devel does need) only live behind the FULL RHEL10 CodeReady
+#     Builder repo (codeready-builder-for-rhel-10-x86_64-rpms) - confirmed
+#     directly on the entitled build host itself. UBI10's own `crb enable`
+#     enables a DIFFERENT, narrower repo
+#     (codeready-builder-for-ubi-10-x86_64-rpms) that does not carry them -
+#     confirmed by running `crb enable` inside an actual UBI10-based
+#     container and inspecting the resulting repo list. This is by design
+#     (UBI's CRB is a curated subset for UBI application builds, not a
+#     mirror of RHEL's full CRB), not a bug workaroundable with more dnf
+#     flags.
+# Same class of problem this project already hit once before for the
+# Kilted image (UBI9's CodeReady Builder naming/availability not matching
+# the CentOS Stream/RHEL-proper install guide) - same fix: CentOS Stream
+# instead of UBI, where CRB is a normal, unrestricted repo
+# (`dnf config-manager --set-enabled crb`, no subscription-manager
+# entitlement involved at all). This does mean redoing the base X11/GPU/
+# RoboStack setup that rviz-humble normally provides, rather than reusing
+# its image directly - see the first several RUN steps below, which
+# mirror ../rviz-tests/Containerfile.rviz-humble's own setup on the new
+# base.
 #
 # Four source repos, three different branches - none of the KUKA repos
 # publish conda/RPM packages, so everything KUKA-specific is built from
@@ -33,23 +74,74 @@
 # driver don't need and which pull in their own unrelated dependencies -
 # --packages-up-to keeps the build scoped to what this test actually
 # exercises.
-FROM quay.io/luferrar/part5:rviz-humble
+FROM quay.io/centos/centos:stream10
 
-# rviz-humble's ros-humble-desktop does not include MoveIt 2 or the
-# ros2_control stack.
-#
-# compilers/cmake/make/ninja/pkg-config: rviz-humble never needed a C/C++
-# toolchain - every ROS package in it is a precompiled conda binary. This
-# Containerfile is the first one in this project to build ament_cmake
-# packages from source (kuka_drivers_core, kuka_resources,
-# kuka_external_control_sdk, ...), which link against conda-forge-built
-# libraries (rclcpp, hardware_interface, ...). Using conda-forge's own
-# "compilers" meta-package (gcc_linux-64/gxx_linux-64 wrapped as CC/CXX via
-# its activation scripts) instead of UBI10's system gcc-c++, per
-# RoboStack's own documented practice for building from source - avoids a
-# libstdc++ ABI mismatch against those conda-forge-built libraries that a
-# system compiler wouldn't necessarily match.
-RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
+# EPEL for glx-utils (glxinfo), used by check-gpu.sh to confirm rendering
+# is actually happening on the NVIDIA GPU. crb: needed for
+# protobuf-devel/protobuf-compiler (see header comment) - a normal,
+# unrestricted repo on CentOS Stream, unlike UBI's own CRB.
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-$(rpm -E %rhel).noarch.rpm \
+    && dnf config-manager --set-enabled crb \
+    && dnf clean all
+
+# System libraries needed for Qt's xcb (X11/XWayland) platform plugin, and
+# the GL/EGL dispatch layer the NVIDIA driver libraries (mounted in by the
+# host's nvidia-container-toolkit hook at runtime) hook into - same
+# rationale as ../rviz-tests/Containerfile.rviz-humble. Plus the build
+# toolchain and grpc/protobuf/openssl kuka_external_control_sdk needs
+# (see header comment) - all straightforward system RPMs here since
+# there's no conda-forge-built C++ code on this base to keep ABI-consistent
+# with (unlike the rviz-humble/UBI10 attempt, where the ROS2 stack itself
+# was conda-forge-built and a system compiler for the KUKA code risked a
+# libstdc++ mismatch against it).
+RUN dnf install -y \
+    ca-certificates \
+    curl \
+    git \
+    mesa-libGL \
+    mesa-libEGL \
+    libglvnd \
+    libglvnd-egl \
+    libglvnd-glx \
+    libwayland-client \
+    libwayland-cursor \
+    libwayland-egl \
+    libxkbcommon \
+    libxcb \
+    libX11 \
+    libXext \
+    libXrender \
+    libSM \
+    libICE \
+    fontconfig \
+    dbus-libs \
+    glx-utils \
+    gcc \
+    gcc-c++ \
+    make \
+    cmake \
+    ninja-build \
+    pkgconfig \
+    openssl-devel \
+    grpc-devel \
+    grpc-plugins \
+    && dnf clean all
+
+# Micromamba (standalone, no system python/conda needed) to install ROS2
+# via RoboStack.
+ENV MAMBA_ROOT_PREFIX=/opt/conda
+RUN curl -fsSL -o /usr/local/bin/micromamba \
+    https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64 \
+    && chmod +x /usr/local/bin/micromamba
+
+# ros-base + rviz2 + ros2launch, not the full ros-humble-desktop
+# metapackage - moveit_example doesn't touch rqt/demo nodes/turtlesim/
+# teleop, same reasoning as ../rviz-tests/Containerfile.rviz-pointcloud.
+# Plus MoveIt 2/ros2_control, which ros-base doesn't include either.
+RUN micromamba create -y -n ros_env -c conda-forge -c robostack-humble \
+    ros-humble-ros-base \
+    ros-humble-rviz2 \
+    ros-humble-ros2launch \
     ros-humble-moveit \
     ros-humble-moveit-planners \
     ros-humble-moveit-ros-planning-interface \
@@ -61,53 +153,8 @@ RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
     ros-humble-ros2-controllers-test-nodes \
     ros-humble-joint-state-publisher-gui \
     colcon-common-extensions \
-    compilers \
-    cmake \
-    make \
-    ninja \
-    pkg-config \
     && micromamba clean -y -a \
     && chmod -R a+rX /opt/conda
-
-# kuka_external_control_sdk (the "iiqka" client library) needs grpc++ (its
-# CMakeLists.txt does `pkg_check_modules(gRPC REQUIRED grpc++)`) and a
-# grpc_cpp_plugin binary at the hardcoded path
-# /usr/bin/grpc_cpp_plugin (protobuf_generate()'s PLUGIN argument in
-# iiqka/CMakeLists.txt - not configurable). Tried conda-forge's grpc-cpp
-# first, but its libprotobuf requirement (<3.22, the whole feedstock has
-# lagged behind rebuilding against newer protobuf majors) directly
-# conflicts with ros-humble-moveit-visual-tools' own pin (via
-# ros2-distro-mutex) to a much newer libprotobuf (5.x/6.x) - protobuf 3.x
-# and 5.x/6.x generated code isn't interchangeable, so this isn't a
-# version to force past. dnf's grpc-devel (confirmed present for RHEL10 at
-# 1.48.4-44.el10_0, same EPEL10 CRB-adjacent repo Containerfile.rviz-
-# pointcloud already enables) sidesteps the conflict entirely - nothing
-# else in this build touches protobuf/grpc, so there's no ABI-consistency
-# reason to prefer conda-forge here the way there was for the C/C++
-# compiler itself. grpc-plugins is the RPM subpackage that installs
-# grpc_cpp_plugin, and it lands at exactly /usr/bin/grpc_cpp_plugin -
-# matching the hardcoded path with no symlink needed. grpc-devel's own
-# Requires resolves pkgconfig(protobuf) (i.e. protobuf-devel) automatically
-# - but only once CodeReady Builder is actually enabled. protobuf-devel/
-# protobuf-compiler (3.19.6, confirmed directly via `dnf repoquery
-# --whatprovides` against the actual entitled host) live in
-# codeready-builder-for-rhel-10-x86_64-rpms - the full RHEL10 CRB
-# entitlement repo, not the same as UBI10's own lighter "CodeReady Builder"
-# repo (which this base image already had enabled and which does NOT
-# carry these packages, hence the earlier "nothing provides
-# pkgconfig(protobuf)" failure despite RHEL10 BaseOS/AppStream entitlement
-# passthrough already being active). Same class of issue as CentOS
-# Stream 9's `crb enable` step in Containerfile.rviz-centos-kilted -
-# CodeReady Builder needs explicit enabling regardless of what other
-# entitled repos are already on.
-RUN crb enable
-RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm \
-    && dnf install -y \
-    git \
-    openssl-devel \
-    grpc-devel \
-    grpc-plugins \
-    && dnf clean all
 
 RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
     mkdir -p /opt/kuka_ws/src && cd /opt/kuka_ws/src && \
@@ -123,11 +170,25 @@ RUN chmod -R a+rX /opt/kuka_ws
 COPY entrypoint.sh /usr/local/bin/entrypoint-kuka.sh
 RUN chmod +x /usr/local/bin/entrypoint-kuka.sh
 
+# Writable-by-anyone home so an arbitrary --user UID (see
+# ../rviz-tests/run-rviz-test.sh) has somewhere to put Qt/ROS config files.
+ENV HOME=/tmp
+ENV QT_QPA_PLATFORM=xcb
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+ENV NVIDIA_VISIBLE_DEVICES=all
+
+WORKDIR /opt
+
 ENTRYPOINT ["/usr/local/bin/entrypoint-kuka.sh"]
 
 # The self-contained mock-hardware entry point, lives in
 # kuka_lbr_iisy_moveit_config (not moveit_example itself), and hardcodes
 # mode:="mock" internally (via kuka_resources' shared
-# fake_hardware_planning_template.launch.py). 
+# fake_hardware_planning_template.launch.py). Run one of moveit_example's
+# own planning nodes (e.g. `ros2 run moveit_example
+# moveit_basic_planners_example`) in a second terminal against this to
+# actually exercise motion planning through the stack. For RT-tuned
+# testing instead of this convenience default, see the README's "Testing
+# RT Performance" section.
 CMD ["ros2", "launch", "kuka_lbr_iisy_moveit_config", \
      "moveit_planning_fake_hardware.launch.py", "robot_model:=lbr_iisy3_r760"]
