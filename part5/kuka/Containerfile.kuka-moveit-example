@@ -139,15 +139,27 @@ RUN micromamba create -y -n ros_env -c conda-forge -c robostack-jazzy \
 # branch was missing - confirmed by reading the actual file on master
 # before relying on it.)
 #
-# --packages-up-to moveit_example kuka_lbr_iisy_moveit_config, not just
-# moveit_example alone: the latter's own launch file resolves
-# kuka_lbr_iisy_moveit_config dynamically at runtime (a Python string built
-# from `robot_family` inside moveit_planning_example.launch.py), not via a
-# package.xml exec_depend - so colcon's static dependency graph can't see
-# it, and --packages-up-to moveit_example alone silently skips it. This
-# Containerfile's default CMD uses kuka_lbr_iisy_moveit_config's own
-# moveit_planning_fake_hardware.launch.py directly anyway (see the CMD's
-# own comment for why), so it needs to be built explicitly regardless.
+# --packages-up-to moveit_example kuka_lbr_iisy_moveit_config
+# kuka_mock_hardware_interface, not just moveit_example alone: neither of
+# the other two is a package.xml exec_depend of anything actually being
+# built, so colcon's static dependency graph can't see either of them.
+# kuka_lbr_iisy_moveit_config is resolved dynamically at runtime (a Python
+# string built from `robot_family` inside
+# moveit_planning_example.launch.py) - see the CMD's own comment for why
+# this Containerfile uses its moveit_planning_fake_hardware.launch.py
+# directly regardless, which needs it built explicitly.
+# kuka_mock_hardware_interface is resolved even more indirectly - it's the
+# pluginlib class (kuka_mock_hardware_interface::KukaMockHardwareInterface)
+# the URDF's `mode:="mock"` conditional selects by string name in
+# kuka_lbr_iisy_ros2_control_macro.xacro, discovered at runtime purely via
+# pluginlib's ament-index plugin registry, with no package.xml dependency
+# edge to it anywhere in this workspace at all. Without it built,
+# controller_manager fails to load the hardware plugin
+# (LibraryLoadException: "does not exist. Declared types are
+# kuka_eac::KukaEACHardwareInterface mock_components/GenericSystem" -
+# confirmed directly from the actual runtime log, not guessed), which is
+# also why it then hangs waiting on the robot_description topic - that's a
+# downstream symptom of the failed plugin load, not a separate issue.
 #
 # LIBRARY_PATH/RPATH: using the system compiler (see the grpc/protobuf
 # comment above for why - conda-forge's own "compilers" package isn't an
@@ -172,6 +184,7 @@ RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
     cd /opt/kuka_ws && \
     export LIBRARY_PATH="/opt/conda/envs/ros_env/lib:${LIBRARY_PATH}" && \
     colcon build --packages-up-to moveit_example kuka_lbr_iisy_moveit_config \
+      kuka_mock_hardware_interface \
     --cmake-args -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_RPATH=/opt/conda/envs/ros_env/lib \
       -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON
