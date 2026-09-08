@@ -10,38 +10,6 @@
 # place of the real iiQKA network driver. This validates the ROS2/build/RT
 # side of the stack, not real robot communication (RSI/EAC network I/O).
 #
-# Standalone (CentOS Stream 10 + RoboStack), NOT layered on rviz-humble
-# (UBI10-based) - this originally WAS layered on rviz-humble, but that hit
-# a real dead end: kuka_external_control_sdk needs grpc++/protobuf
-# (pkg_check_modules(gRPC REQUIRED grpc++) in its CMakeLists.txt), and:
-#   - conda-forge's own grpc-cpp feedstock is capped at 1.51.1 (confirmed
-#     against the actual linux-64 repodata, not just anaconda.org's
-#     possibly-stale "latest_version" field), which needs libprotobuf
-#     <3.22 - directly incompatible with robostack-humble's own pin (via
-#     ros2-distro-mutex) to libprotobuf 5.x/6.x. Protobuf 3.x and 5.x/6.x
-#     generated code isn't interchangeable, so this isn't a version to
-#     force past.
-#   - RHEL10's own protobuf-devel/protobuf-compoiler (3.19.6, which
-#     grpc-devel does need) only live behind the FULL RHEL10 CodeReady
-#     Builder repo (codeready-builder-for-rhel-10-x86_64-rpms) - confirmed
-#     directly on the entitled build host itself. UBI10's own `crb enable`
-#     enables a DIFFERENT, narrower repo
-#     (codeready-builder-for-ubi-10-x86_64-rpms) that does not carry them -
-#     confirmed by running `crb enable` inside an actual UBI10-based
-#     container and inspecting the resulting repo list. This is by design
-#     (UBI's CRB is a curated subset for UBI application builds, not a
-#     mirror of RHEL's full CRB), not a bug workaroundable with more dnf
-#     flags.
-# Same class of problem this project already hit once before for the
-# Kilted image (UBI9's CodeReady Builder naming/availability not matching
-# the CentOS Stream/RHEL-proper install guide) - same fix: CentOS Stream
-# instead of UBI, where CRB is a normal, unrestricted repo
-# (`dnf config-manager --set-enabled crb`, no subscription-manager
-# entitlement involved at all). This does mean redoing the base X11/GPU/
-# RoboStack setup that rviz-humble normally provides, rather than reusing
-# its image directly - see the first several RUN steps below, which
-# mirror ../rviz-tests/Containerfile.rviz-humble's own setup on the new
-# base.
 #
 # Four source repos, three different branches - none of the KUKA repos
 # publish conda/RPM packages, so everything KUKA-specific is built from
@@ -78,8 +46,7 @@ FROM quay.io/centos/centos:stream10
 
 # EPEL for glx-utils (glxinfo), used by check-gpu.sh to confirm rendering
 # is actually happening on the NVIDIA GPU. crb: needed for
-# protobuf-devel/protobuf-compiler (see header comment) - a normal,
-# unrestricted repo on CentOS Stream, unlike UBI's own CRB.
+# protobuf-devel/protobuf-compiler.
 RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-$(rpm -E %rhel).noarch.rpm \
     && dnf config-manager --set-enabled crb \
     && dnf clean all
@@ -88,12 +55,13 @@ RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-$(r
 # the GL/EGL dispatch layer the NVIDIA driver libraries (mounted in by the
 # host's nvidia-container-toolkit hook at runtime) hook into - same
 # rationale as ../rviz-tests/Containerfile.rviz-humble. Plus the build
-# toolchain and grpc/protobuf/openssl kuka_external_control_sdk needs
-# (see header comment) - all straightforward system RPMs here since
-# there's no conda-forge-built C++ code on this base to keep ABI-consistent
-# with (unlike the rviz-humble/UBI10 attempt, where the ROS2 stack itself
-# was conda-forge-built and a system compiler for the KUKA code risked a
-# libstdc++ mismatch against it).
+# toolchain, grpc/protobuf/openssl kuka_external_control_sdk's "iiqka"
+# (KUKA iiQKA) client library needs, and tinyxml2-devel for its "kss"
+# (KUKA System Software / RSI, industrial robots) client library - not
+# actually needed by moveit_example (which only uses the iiqka library),
+# but colcon builds ament packages as a whole, and kuka_external_control_
+# sdk's CMakeLists.txt compiles both client libraries unconditionally with
+# no per-subdirectory build option to skip kss.
 RUN dnf install -y \
     ca-certificates \
     curl \
@@ -125,6 +93,7 @@ RUN dnf install -y \
     openssl-devel \
     grpc-devel \
     grpc-plugins \
+    tinyxml2-devel \
     && dnf clean all
 
 # Micromamba (standalone, no system python/conda needed) to install ROS2
@@ -135,9 +104,7 @@ RUN curl -fsSL -o /usr/local/bin/micromamba \
     && chmod +x /usr/local/bin/micromamba
 
 # ros-base + rviz2 + ros2launch, not the full ros-humble-desktop
-# metapackage - moveit_example doesn't touch rqt/demo nodes/turtlesim/
-# teleop, same reasoning as ../rviz-tests/Containerfile.rviz-pointcloud.
-# Plus MoveIt 2/ros2_control, which ros-base doesn't include either.
+# metapackage plus MoveIt 2/ros2_control, which ros-base doesn't include either.
 RUN micromamba create -y -n ros_env -c conda-forge -c robostack-humble \
     ros-humble-ros-base \
     ros-humble-rviz2 \

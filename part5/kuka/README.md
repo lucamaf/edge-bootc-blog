@@ -26,8 +26,26 @@ compatibility check for the ROS2 stack, not a robot-communication test.
 ## Why Humble, not the upstream-recommended Jazzy
 
 `kroshu/kuka_drivers`' own README recommends its `master` branch (currently ROS2 Jazzy) over its
-`humble` branch. This test uses Humble instead, layered on this project's `rviz-humble` image
-(`../rviz-tests/Containerfile.rviz-humble`) — the most-proven RHEL10 ROS2 path in this project so far. Humble keeps this test to one new variable at a time. `master`/Jazzy is worth revisiting later if there's a specific reason to.
+`humble` branch. This test uses Humble instead — the most-proven RHEL10 ROS2 path in this project so
+far. Humble keeps this test to one new variable at a time. `master`/Jazzy is worth revisiting later if
+there's a specific reason to.
+
+## Why CentOS Stream 10, not UBI10/rviz-humble
+
+This was originally layered on `../rviz-tests`' `rviz-humble` image (UBI10-based), but that hit a real
+dead end: `kuka_external_control_sdk` needs `grpc++`/protobuf, and neither conda-forge's `grpc-cpp`
+(capped at a version needing `libprotobuf <3.22`, incompatible with `robostack-humble`'s own pin to
+`libprotobuf` 5.x/6.x) nor RHEL10's system `grpc-devel` (needs `protobuf-devel`/`protobuf-compiler`,
+which live behind the *full* RHEL10 CodeReady Builder repo — UBI10's own `crb enable` enables a
+different, narrower repo that doesn't carry them, confirmed by actually running it inside the container)
+could satisfy it. Full reasoning and the exact commands that confirmed each dead end are in the
+Containerfile's own header comment.
+
+Same class of problem this project already hit once for the Kilted image (UBI9's CodeReady Builder not
+matching what the CentOS Stream/RHEL-proper install guide expected) — same fix: CentOS Stream instead of
+UBI, where CRB is a normal, unrestricted repo. This is now a **standalone** image (CentOS Stream 10 +
+RoboStack, redoing the X11/GPU/ROS2 setup `rviz-humble` normally provides) rather than layered on
+`rviz-humble`.
 
 ## Source layout
 
@@ -147,7 +165,8 @@ here the way `../rt/README.md` and `../rviz-tests/README.md` have for their own 
 
 ## Files
 
-- **Containerfile.kuka-moveit-example**: layered on `../rviz-tests`' `rviz-humble` image; adds MoveIt
-  2/`ros2_control` conda packages, then builds the four KUKA source repos in `/opt/kuka_ws`
+- **Containerfile.kuka-moveit-example**: standalone (CentOS Stream 10 + RoboStack, see "Why CentOS
+  Stream 10" above); sets up X11/GPU passthrough and ROS2/MoveIt 2/`ros2_control` the same way
+  `../rviz-tests`' images do, then builds the four KUKA source repos in `/opt/kuka_ws`
 - **entrypoint.sh**: activates the `ros_env` micromamba environment, sources the `kuka_ws` workspace
   overlay, then execs the given command
