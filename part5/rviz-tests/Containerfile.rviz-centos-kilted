@@ -1,0 +1,61 @@
+# tagged as quay.io/luferrar/part5:rviz-kilted
+#
+# ROS2 Kilted via the OFFICIAL RPM channel (ros-infrastructure/ros-apt-source, per
+# https://docs.ros.org/en/kilted/Installation/RHEL-Install-RPMs.html).
+#
+FROM quay.io/centos/centos:stream9
+
+# EPEL + CodeReady Builder (CRB), exactly per the install guide - except
+# curl. We only need curl for a trivial HTTPS GET below, which curl-minimal already handles,
+# so it's simplest to just not install the full package at all.
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-$(rpm -E %rhel).noarch.rpm \
+    && dnf install -y dnf-plugins-core \
+    && dnf config-manager --set-enabled crb \
+    && dnf clean all
+
+# The ROS2 apt-source RPM registers the actual ros-infrastructure yum repo.
+RUN ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F'"' '{print $4}') \
+    && dnf install -y "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-release-${ROS_APT_SOURCE_VERSION}-1.noarch.rpm" \
+    && dnf clean all
+
+# X11/XWayland + GL/EGL dispatch libraries for Qt's xcb platform plugin and
+# GPU rendering.
+#
+# qt5-qtwayland: unlike RoboStack/conda-forge's Qt build (which has no
+# wayland platform plugin at all), this RPM exists on CentOS Stream 9's own AppStream repo.
+RUN dnf install -y \
+    mesa-libGL \
+    mesa-libEGL \
+    libglvnd \
+    libglvnd-egl \
+    libglvnd-glx \
+    libxkbcommon \
+    libxcb \
+    libX11 \
+    libXext \
+    libXrender \
+    libSM \
+    libICE \
+    qt5-qtwayland \
+    fontconfig \
+    dbus-libs \
+    glx-utils \
+    && dnf clean all
+
+# ros-kilted-desktop includes rviz2 .
+RUN dnf install -y ros-kilted-desktop \
+    && dnf clean all
+
+COPY entrypoint-kilted.sh /usr/local/bin/entrypoint-kilted.sh
+COPY check-gpu.sh /usr/local/bin/check-gpu.sh
+RUN chmod +x /usr/local/bin/entrypoint-kilted.sh /usr/local/bin/check-gpu.sh
+
+ENV HOME=/tmp
+ENV QT_QPA_PLATFORM=xcb
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+ENV NVIDIA_VISIBLE_DEVICES=all
+
+WORKDIR /opt
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-kilted.sh"]
+CMD ["rviz2"]

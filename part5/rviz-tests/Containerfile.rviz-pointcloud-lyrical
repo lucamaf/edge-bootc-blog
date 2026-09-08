@@ -1,0 +1,38 @@
+# tagged as quay.io/luferrar/part5:rviz-pointcloud-lyrical
+#
+# gpu_pointcloud_test (../gpu_pointcloud_test/), same package as
+# Containerfile.pointcloud/Containerfile.pointcloud-rpm, layered on the
+# Fedora + official Copr RPMs image (quay.io/luferrar/part5:rviz-lyrical)
+#
+FROM quay.io/luferrar/part5:rviz-lyrical
+
+RUN dnf install -y \
+    python3-colcon-common-extensions \
+    python3-pip \
+    python3-setuptools \
+    && dnf clean all
+
+# (NVIDIA's unified cuda-toolkit metapackage rather
+# than trusting cupy-cuda12x's own [ctk] extra).
+RUN pip3 install --no-cache-dir --upgrade \
+    cupy-cuda12x \
+    "cuda-toolkit[cublas,cudart,cufft,curand,cusolver,cusparse,nvrtc]==12.*" \
+    numpy
+
+COPY gpu_pointcloud_test /opt/gpu_pointcloud_ws/src/gpu_pointcloud_test
+
+RUN source /opt/ros/lyrical/setup.bash && \
+    cd /opt/gpu_pointcloud_ws && \
+    colcon build --packages-select gpu_pointcloud_test
+
+COPY rviz-tests/entrypoint-pointcloud-lyrical.sh /usr/local/bin/entrypoint-pointcloud-lyrical.sh
+COPY rviz-tests/run-gpu-pointcloud-lyrical.sh /usr/local/bin/run-gpu-pointcloud-lyrical.sh
+RUN chmod +x /usr/local/bin/entrypoint-pointcloud-lyrical.sh /usr/local/bin/run-gpu-pointcloud-lyrical.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-pointcloud-lyrical.sh"]
+
+# Not `ros2 launch gpu_pointcloud_test gpu_pointcloud.launch.py ...` this Copr has no ros2launch package, so
+# run-gpu-pointcloud-lyrical.sh drives the same two processes directly via
+# `ros2 run`. Same tuned parameters as in the other cases.
+CMD ["/usr/local/bin/run-gpu-pointcloud-lyrical.sh", \
+     "num_points:=200000", "gpu_iterations:=80", "neighbor_sample:=800"]

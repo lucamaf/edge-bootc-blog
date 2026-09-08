@@ -1,28 +1,10 @@
 # tagged as quay.io/luferrar/part5:rviz-lyrical
 #
-# Third ROS2 source explored in this directory: Fedora + ROS2 Lyrical via
-# the Fedora robotics-sig's hellaenergy/ros2 Copr, per
+# Fedora + ROS2 Lyrical via the Fedora robotics-sig's hellaenergy/ros2 Copr, per
 # https://docs.fedoraproject.org/en-US/robotics-sig/ros2/#_ros_2_lyrical_installation
 #
-# Confirmed directly against the actual Copr package list (146 packages,
-# paginated - the first-page-only check that ruled this out earlier in
-# this project's own history was wrong) that this genuinely builds a full
-# rviz2 stack: ros-lyrical-rviz2, ros-lyrical-rviz-ogre-vendor,
-# ros-lyrical-rviz-common, ros-lyrical-rviz-default-plugins, plus a full
-# ros-lyrical-ros-desktop metapackage. That's unlike the Ogre/Assimp build
-# failure on this same infrastructure's Jazzy Copr project, and unlike
-# RoboStack/conda-forge's Qt build (see Containerfile), which has no
-# "wayland" platform plugin at all.
-#
-# Fedora, not RHEL/CentOS Stream: this is upstream of RHEL, not RHEL10
-# itself - no ROS2 distro's official channel (RPM or binary) targets RHEL10
-# at all yet (checked directly against Humble/Jazzy/Kilted's own install
-# docs). Simpler setup than the Kilted/CentOS Stream 9 image as a result:
-# no EPEL/CodeReady Builder needed, Fedora's own repos are self-contained.
-#
-# Native Wayland tested and confirmed NOT to work here either, same as
-# Containerfile.ros2-rpm: QT_QPA_PLATFORM=wayland gets past Qt itself but
-# rviz-ogre-vendor's window creation is still hardcoded to GLX/X11 -
+# Native Wayland tested and confirmed NOT to work: QT_QPA_PLATFORM=wayland 
+# gets past Qt itself but rviz-ogre-vendor's window creation is still hardcoded to GLX/X11 -
 # "RenderingAPIException: Invalid parentWindowHandle (wrong server or
 # screen) in GLXWindow::create at .../GLX/OgreGLXWindow.cpp". xcb (the
 # default here) launches cleanly with no errors.
@@ -32,11 +14,6 @@ RUN dnf install -y dnf-plugins-core \
     && dnf copr enable -y hellaenergy/ros2 \
     && dnf clean all
 
-# X11/XWayland + GL/EGL dispatch libraries for Qt's xcb platform plugin and
-# GPU rendering - same rationale as this directory's other images (see
-# Containerfile). The NVIDIA driver itself is NOT installed here - it's
-# injected at runtime via --device nvidia.com/gpu=all (CDI).
-#
 # yaml-cpp: librviz_common.so links directly against libyaml-cpp.so.0.8
 # (confirmed via ldd), but none of the hellaenergy/ros2 Copr's rviz RPMs
 # (rviz2, rviz-common, rviz-rendering, rviz-ogre-vendor,
@@ -44,9 +21,7 @@ RUN dnf install -y dnf-plugins-core \
 # that Copr, not a Fedora/dnf weak-deps issue (dnf.conf here has no
 # install_weak_deps setting, and the missing Requires is absent even from
 # each package's raw installed RPM metadata, not just filtered by weak-deps
-# skipping). Fedora's own stable repo ships the exact soname needed
-# (yaml-cpp-0.8.0-5.fc44), so installing it explicitly is enough - no need
-# for the ROS-specific ros-lyrical-yaml-cpp-vendor package.
+# skipping). So we have to install it explicitly here, otherwise rviz2 fails at runtime
 RUN dnf install -y \
     mesa-libGL \
     mesa-libEGL \
@@ -66,9 +41,6 @@ RUN dnf install -y \
     yaml-cpp \
     && dnf clean all
 
-# ros-lyrical-ros-desktop includes rviz2 - see the header comment for how
-# that was confirmed against the actual Copr package list.
-#
 # ros-lyrical-std-srvs: rviz2 fails at dlopen with
 # "libstd_srvs__rosidl_typesupport_cpp.so: cannot open shared object file"
 # without it, same class of issue as the yaml-cpp fix above (a runtime

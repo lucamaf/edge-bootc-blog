@@ -9,15 +9,6 @@
 # unavoidable for GPU visualization either way; this just drops desktop's
 # unrelated bulk on top of it.
 #
-# Same X11/GPU passthrough setup as the other rviz-tests images (see
-# Containerfile for the full rationale on RoboStack vs RPMs, and X11/XWayland
-# vs Wayland) - just a smaller ROS2 package selection.
-#
-# Build context is the PARENT directory (part5/), to reach the sibling
-# gpu_pointcloud_test/ package:
-#
-#   podman build -t quay.io/luferrar/part5:rviz-pointcloud \
-#     -f rviz-tests/Containerfile.pointcloud part5/
 FROM registry.access.redhat.com/ubi10/ubi:latest
 
 RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm \
@@ -48,9 +39,7 @@ RUN curl -fsSL -o /usr/local/bin/micromamba \
     https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64 \
     && chmod +x /usr/local/bin/micromamba
 
-# ros-base + rviz2 + ros2launch (ros2launch is normally already pulled in by
-# ros-base, but gpu_pointcloud_test's package.xml declares it explicitly, so
-# named here too for certainty) + colcon/pip to build and run the package.
+# ros-base + rviz2 + ros2launch + colcon/pip to build and run the package.
 RUN micromamba create -y -n ros_env -c conda-forge -c robostack-humble \
     ros-humble-ros-base \
     ros-humble-rviz2 \
@@ -67,11 +56,6 @@ RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
 
 COPY gpu_pointcloud_test /opt/gpu_pointcloud_ws/src/gpu_pointcloud_test
 
-# Plain install, not --symlink-install: for ament_python packages that flag
-# shells out to the legacy "setup.py develop --editable" mechanism, which
-# recent setuptools has dropped ("error: option --editable not recognized").
-# Not needed anyway for a one-shot container build (that flag exists for
-# iterative local dev, so source edits take effect without a rebuild).
 RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
     cd /opt/gpu_pointcloud_ws && \
     colcon build --packages-select gpu_pointcloud_test
@@ -93,10 +77,6 @@ ENTRYPOINT ["/usr/local/bin/entrypoint-pointcloud.sh"]
 
 # Tuned down from the package's own defaults (num_points=1000000
 # gpu_iterations=400 neighbor_sample=3000, ~3.7s/frame measured on this
-# Quadro P620 - a low-end 2GB card, well below the "mid-range GPU" the
-# package's README calibrates its defaults against) for a smooth default
-# experience on this hardware. See README's "Tuning for a low-end GPU"
-# section for the reasoning and how to override back to the heavy settings
-# for RT-interference stress testing instead of smooth visualization.
+# Quadro P620) for a smooth default experience on this hardware. 
 CMD ["ros2", "launch", "gpu_pointcloud_test", "gpu_pointcloud.launch.py", \
      "num_points:=200000", "gpu_iterations:=80", "neighbor_sample:=800"]

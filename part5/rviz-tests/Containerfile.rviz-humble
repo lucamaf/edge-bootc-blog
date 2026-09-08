@@ -1,15 +1,6 @@
 # tagged as quay.io/luferrar/part5:rviz-humble
 #
-# RViz2 test container for RHEL10 + NVIDIA (Quadro P620), GPU-accelerated via
-# the host's nvidia-container-toolkit/CDI setup (see nvidia-cdi-setup.md), GUI
-# shown via X11/XWayland passthrough (see run-rviz-test.sh). Not Wayland:
-# RoboStack/conda-forge's Qt build has no "wayland" platform plugin at all.
-#
-# ROS2 is installed via RoboStack (conda-forge + robostack-humble), not RPMs:
-# the Fedora robotics-sig Copr (and its CentOS Stream 10 variant) explicitly
-# doesn't ship rviz2 at all ("not available in this Copr due to upstream
-# build issues with Ogre and Assimp on Fedora") - RoboStack builds its own
-# Ogre via conda-forge, sidestepping that failure.
+# ROS2 is installed via RoboStack (conda-forge + robostack-humble):
 FROM registry.access.redhat.com/ubi10/ubi:latest
 
 # EPEL for glx-utils (glxinfo), used by check-gpu.sh to confirm rendering is
@@ -22,9 +13,7 @@ RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.
 # the GL/EGL dispatch layer that the NVIDIA driver libraries mounted in by
 # the host's nvidia-container-toolkit hook into at runtime. The wayland-*
 # libs are kept in case a future Qt build in this env picks up wayland
-# support, but nothing here currently uses them. The NVIDIA driver itself
-# is NOT installed here - it's injected by the host via
-# --device nvidia.com/gpu=all (CDI).
+# support, but nothing here currently uses them.
 RUN dnf install -y \
     ca-certificates \
     curl \
@@ -66,19 +55,21 @@ RUN micromamba create -y -n ros_env -c conda-forge -c robostack-humble ros-humbl
 # fixed one.
 RUN chmod -R a+rX /opt/conda
 
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY entrypoint-humble.sh /usr/local/bin/entrypoint-humble.sh
 COPY check-gpu.sh /usr/local/bin/check-gpu.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/check-gpu.sh
+RUN chmod +x /usr/local/bin/entrypoint-humble.sh /usr/local/bin/check-gpu.sh
 
 # Writable-by-anyone home so an arbitrary --user UID (no /etc/passwd entry
 # of its own beyond the bind-mounted one, see run-rviz-test.sh) has
 # somewhere to put Qt/ROS config files.
 ENV HOME=/tmp
+# Qt's xcb platform plugin is the only one that works with X11/XWayland, so
 ENV QT_QPA_PLATFORM=xcb
+# The NVIDIA driver libraries are mounted in by the host's nvidia-container-toolkit hook at runtime, so tell the container to make them available to the ROS2 GUI app (rviz2) and any other GPU-using processes.
 ENV NVIDIA_DRIVER_CAPABILITIES=all
 ENV NVIDIA_VISIBLE_DEVICES=all
 
 WORKDIR /opt
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/entrypoint-humble.sh"]
 CMD ["rviz2"]
