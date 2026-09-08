@@ -66,12 +66,28 @@ RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
     make \
     ninja \
     pkg-config \
+    grpc-cpp \
+    libprotobuf \
     && micromamba clean -y -a \
     && chmod -R a+rX /opt/conda
 
+# kuka_external_control_sdk (the "iiqka" client library, gRPC-based) needs:
+#  - grpc-cpp/libprotobuf above (conda-forge, same ABI-consistency reasoning
+#    as compilers) - its CMakeLists.txt does `pkg_check_modules(gRPC
+#    REQUIRED grpc++)`, findable via pkg-config once grpc-cpp is installed.
+#  - its protobuf_generate() call for the grpc plugin hardcodes
+#    PLUGIN="protoc-gen-grpc=/usr/bin/grpc_cpp_plugin" (confirmed directly
+#    in iiqka/CMakeLists.txt - not a configurable option), but conda-forge's
+#    grpc-cpp installs it at /opt/conda/envs/ros_env/bin/grpc_cpp_plugin -
+#    the symlink below bridges that upstream-hardcoded path.
+#  - openssl-devel (dnf, not conda-forge): OpenSSL is a stable C ABI, not
+#    C++, so unlike grpc/protobuf there's no ABI-consistency reason to
+#    prefer conda-forge's build over the system one here.
 RUN dnf install -y \
     git \
-    && dnf clean all
+    openssl-devel \
+    && dnf clean all \
+    && ln -sf /opt/conda/envs/ros_env/bin/grpc_cpp_plugin /usr/bin/grpc_cpp_plugin
 
 RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
     mkdir -p /opt/kuka_ws/src && cd /opt/kuka_ws/src && \
