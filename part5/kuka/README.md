@@ -13,7 +13,7 @@ in the robot's URDF), not the standard `mock_components/GenericSystem`, and not 
 
 That means this **does** validate:
 - The actual driver source (`kuka_iiqka_eac_driver`, `kuka_drivers_core`, the custom KUKA `ros2_control`
-  controllers) builds cleanly on RHEL10/ROS2 Humble via RoboStack
+  controllers) builds cleanly on RHEL10/ROS2 Jazzy via RoboStack
 - The RT-relevant control loop code — `control_node`'s `cpu_affinity`/`thread_priority`/`lock_memory`
   (`mlockall`) options — runs without error
 - MoveIt 2 planning, `ros2_control` controller spawning/activation, and the driver's lifecycle-node
@@ -23,12 +23,20 @@ This does **not** validate real robot communication — the RSI/EAC network prot
 execution, or anything specific to talking to a physical LBR iisy over the network. It's a build/runtime
 compatibility check for the ROS2 stack, not a robot-communication test.
 
-## Why Humble, not the upstream-recommended Jazzy
+## Why Jazzy, matching the upstream-recommended branch
 
-`kroshu/kuka_drivers`' own README recommends its `master` branch (currently ROS2 Jazzy) over its
-`humble` branch. This test uses Humble instead — the most-proven RHEL10 ROS2 path in this project so
-far. Humble keeps this test to one new variable at a time. `master`/Jazzy is worth revisiting later if
-there's a specific reason to.
+This started on Humble instead — this project's most-proven RHEL10 ROS2 path, and using it kept this
+test to one new variable at a time rather than adding an unvalidated ROS2 distro on top of an already-new
+integration. That held up until actually *running* it: `kuka_robot_descriptions` has a single,
+distro-agnostic branch (`master`), and its current content turned out to genuinely need
+newer-than-Humble features — an async-hardware-component URDF tag (`<properties><async .../></properties>`
+in the `<ros2_control>` block) that Humble's `hardware_interface` XML parser doesn't recognize at all
+(`terminate called ... invalid tag name properties`, not a warning — a hard crash), and a MoveIt CHOMP
+config parameter (`chomp.request_adapters`) using a newer list type that Humble's `moveit_cpp` rejects
+(`InvalidParameterTypeException`, also a hard crash). Both confirmed by actually running the container,
+not just reading source. Jazzy is what this content actually targets — matching `kroshu/kuka_drivers`'
+own README recommendation — so that's what this now uses instead of continuing to patch around
+Humble-specific gaps with no way to know how many more there were.
 
 ## Why CentOS Stream 10, not UBI10/rviz-humble
 
@@ -43,21 +51,21 @@ Containerfile's own header comment.
 
 Same class of problem this project already hit once for the Kilted image (UBI9's CodeReady Builder not
 matching what the CentOS Stream/RHEL-proper install guide expected) — same fix: CentOS Stream instead of
-UBI, where CRB is a normal, unrestricted repo. This is now a **standalone** image (CentOS Stream 10 +
+UBI, where CRB is a normal, unrestricted repo. This is a **standalone** image (CentOS Stream 10 +
 RoboStack, redoing the X11/GPU/ROS2 setup `rviz-humble` normally provides) rather than layered on
 `rviz-humble`.
 
 ## Source layout
 
-Four repos, three different branches, built together as one colcon workspace (see the Containerfile's
-own comments for the full reasoning per repo):
+Four repos, built together as one colcon workspace (see the Containerfile's own comments for the full
+reasoning per repo):
 
 | Repo | Branch | Why |
 |---|---|---|
-| `kroshu/kuka_drivers` | `humble` | the driver itself, matches the ROS2 distro choice above |
+| `kroshu/kuka_drivers` | `master` (= Jazzy) | the driver itself, matches the ROS2 distro choice above |
 | `kroshu/kuka_robot_descriptions` | `master` | URDF/moveit-configs/mock hardware plugin — distro-agnostic, no per-ROS2-version branch exists |
 | `kroshu/kuka-external-control-sdk` | `master` | non-ROS SDK wrapped for colcon — also distro-agnostic |
-| `kroshu/examples` | `humble` | `moveit_example` itself |
+| `kroshu/examples` | `master` (= Jazzy) | `moveit_example` itself |
 
 `colcon build --packages-up-to moveit_example` keeps the build scoped to what the iiQKA driver actually
 needs — `kuka_drivers` also contains RSI/FRI/KSS drivers for KUKA's other (industrial/LBR iiwa) product

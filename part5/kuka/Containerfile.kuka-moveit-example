@@ -11,19 +11,25 @@
 # side of the stack, not real robot communication (RSI/EAC network I/O).
 #
 #
-# Four source repos, three different branches - none of the KUKA repos
-# publish conda/RPM packages, so everything KUKA-specific is built from
-# source in one colcon workspace:
-#   - kroshu/kuka_drivers (branch: humble) - the driver itself
-#     (kuka_iiqka_eac_driver, kuka_drivers_core, kuka_driver_interfaces,
-#     and the custom ros2_control controllers it needs:
-#     kuka_control_mode_handler, kuka_event_broadcaster,
-#     joint_group_impedance_controller). humble/master branches exist
-#     because upstream tracks ROS2 distros directly; master currently
-#     means Jazzy (this project's rviz-tests explored Humble/Kilted/Lyrical
-#     RHEL10 paths already, none of which is Jazzy - see ../rviz-tests
-#     README - so Humble here reuses this project's most-proven path
-#     instead of opening up a fourth, unvalidated ROS2-distro combination).
+# Four source repos, all pointed at the ROS2-Jazzy-tracking side of each -
+# none of the KUKA repos publish conda/RPM packages, so everything
+# KUKA-specific is built from source in one colcon workspace:
+#   - kroshu/kuka_drivers (branch: master, currently = Jazzy) - the driver
+#     itself (kuka_iiqka_eac_driver, kuka_drivers_core,
+#     kuka_driver_interfaces, and the custom ros2_control controllers it
+#     needs: kuka_control_mode_handler, kuka_event_broadcaster,
+#     joint_group_impedance_controller). This project originally used the
+#     `humble` branch instead (this project's rviz-tests had already
+#     proven Humble as an RHEL10 path, and Jazzy would've been a second new
+#     variable at once) - but kuka_robot_descriptions' single,
+#     distro-agnostic branch (below) turned out to genuinely need
+#     newer-than-Humble ros2_control/MoveIt2 features (an async-hardware-
+#     component URDF tag Humble's hardware_interface parser doesn't
+#     recognize at all, and a MoveIt CHOMP config parameter type Humble's
+#     moveit_cpp doesn't accept) - both confirmed as hard runtime crashes,
+#     not just warnings, when actually run on Humble. Jazzy is what
+#     kuka_robot_descriptions' current content actually targets, matching
+#     kuka_drivers' own README recommendation.
 #   - kroshu/kuka_robot_descriptions (branch: master) - URDF/meshes/moveit
 #     configs for all KUKA robot families, plus kuka_mock_hardware_interface
 #     (the mock plugin this test actually exercises). Distro-agnostic
@@ -34,7 +40,8 @@
 #   - kroshu/kuka-external-control-sdk (branch: master) - kuka_external_
 #     control_sdk, a non-ROS SDK wrapped with a package.xml so colcon can
 #     build it; also distro-agnostic for the same reason.
-#   - kroshu/examples (branch: humble) - moveit_example itself.
+#   - kroshu/examples (branch: master, currently = Jazzy) - moveit_example
+#     itself.
 #
 # --packages-up-to moveit_example, not a full workspace build: kuka_drivers
 # also contains the RSI/FRI/KSS drivers and controllers for KUKA's other
@@ -105,38 +112,32 @@ RUN curl -fsSL -o /usr/local/bin/micromamba \
     https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64 \
     && chmod +x /usr/local/bin/micromamba
 
-# ros-base + rviz2 + ros2launch, not the full ros-humble-desktop
-# metapackage plus MoveIt 2/ros2_control, which ros-base doesn't include either.
-RUN micromamba create -y -n ros_env -c conda-forge -c robostack-humble \
-    ros-humble-ros-base \
-    ros-humble-rviz2 \
-    ros-humble-ros2launch \
-    ros-humble-moveit \
-    ros-humble-moveit-planners \
-    ros-humble-moveit-ros-planning-interface \
-    ros-humble-moveit-visual-tools \
-    ros-humble-moveit-ros-visualization \
-    ros-humble-controller-manager \
-    ros-humble-ros2-control \
-    ros-humble-ros2-controllers \
-    ros-humble-ros2-controllers-test-nodes \
-    ros-humble-joint-state-publisher-gui \
+# ros-base + rviz2 + ros2launch, not the full ros-jazzy-desktop metapackage,
+# plus MoveIt 2/ros2_control, which ros-base doesn't include either. All
+# package names confirmed present on robostack-jazzy before adding here.
+RUN micromamba create -y -n ros_env -c conda-forge -c robostack-jazzy \
+    ros-jazzy-ros-base \
+    ros-jazzy-rviz2 \
+    ros-jazzy-ros2launch \
+    ros-jazzy-moveit \
+    ros-jazzy-moveit-planners \
+    ros-jazzy-moveit-ros-planning-interface \
+    ros-jazzy-moveit-visual-tools \
+    ros-jazzy-moveit-ros-visualization \
+    ros-jazzy-controller-manager \
+    ros-jazzy-ros2-control \
+    ros-jazzy-ros2-controllers \
+    ros-jazzy-ros2-controllers-test-nodes \
+    ros-jazzy-joint-state-publisher-gui \
     colcon-common-extensions \
     && micromamba clean -y -a \
     && chmod -R a+rX /opt/conda
 
-# Upstream bug in kuka_drivers_core: control_mode.hpp uses std::uint8_t
-# (`enum class ControlMode : std::uint8_t`) but never includes <cstdint>.
-# This built fine layered on rviz-humble (conda-forge's own, older
-# compilers package apparently leaked <cstdint> transitively through some
-# other header), but fails outright on CentOS Stream 10's own GCC, which
-# doesn't leak it the same way - std::uint8_t ends up undeclared, and
-# GCC's error recovery on the resulting malformed enum-base-specifier
-# produces a confusing cascade of "elaborated-type-specifier"/"use of enum
-# without previous declaration" errors that look unrelated to a missing
-# include at first glance. Patched directly (sed, below) rather than
-# worked around with a global -include flag, since this is a small,
-# precisely-located upstream gap.
+# (No <cstdint> patch needed here, unlike the earlier Humble/rviz-humble
+# attempt: kuka_drivers_core/include/kuka_drivers_core/control_mode.hpp on
+# the master branch already has the #include <cstdint> that the humble
+# branch was missing - confirmed by reading the actual file on master
+# before relying on it.)
 #
 # --packages-up-to moveit_example kuka_lbr_iisy_moveit_config, not just
 # moveit_example alone: the latter's own launch file resolves
@@ -149,12 +150,10 @@ RUN micromamba create -y -n ros_env -c conda-forge -c robostack-humble \
 # own comment for why), so it needs to be built explicitly regardless.
 RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
     mkdir -p /opt/kuka_ws/src && cd /opt/kuka_ws/src && \
-    git clone --branch humble --depth 1 https://github.com/kroshu/kuka_drivers.git && \
+    git clone --branch master --depth 1 https://github.com/kroshu/kuka_drivers.git && \
     git clone --branch master --depth 1 https://github.com/kroshu/kuka_robot_descriptions.git && \
     git clone --branch master --depth 1 https://github.com/kroshu/kuka-external-control-sdk.git && \
-    git clone --branch humble --depth 1 https://github.com/kroshu/examples.git kuka_examples && \
-    sed -i '/#define KUKA_DRIVERS_CORE__CONTROL_MODE_HPP_/a\\n#include <cstdint>' \
-      kuka_drivers/kuka_drivers_core/include/kuka_drivers_core/control_mode.hpp && \
+    git clone --branch master --depth 1 https://github.com/kroshu/examples.git kuka_examples && \
     cd /opt/kuka_ws && \
     colcon build --packages-up-to moveit_example kuka_lbr_iisy_moveit_config \
     --cmake-args -DCMAKE_BUILD_TYPE=Release
