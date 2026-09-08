@@ -87,8 +87,21 @@ RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
 # compiler itself. grpc-plugins is the RPM subpackage that installs
 # grpc_cpp_plugin, and it lands at exactly /usr/bin/grpc_cpp_plugin -
 # matching the hardcoded path with no symlink needed. grpc-devel's own
-# Requires resolves pkgconfig(protobuf) (i.e. protobuf-devel) automatically.
+# Requires resolves pkgconfig(protobuf) (i.e. protobuf-devel) automatically
+# - but only once CodeReady Builder is actually enabled. protobuf-devel/
+# protobuf-compiler (3.19.6, confirmed directly via `dnf repoquery
+# --whatprovides` against the actual entitled host) live in
+# codeready-builder-for-rhel-10-x86_64-rpms - the full RHEL10 CRB
+# entitlement repo, not the same as UBI10's own lighter "CodeReady Builder"
+# repo (which this base image already had enabled and which does NOT
+# carry these packages, hence the earlier "nothing provides
+# pkgconfig(protobuf)" failure despite RHEL10 BaseOS/AppStream entitlement
+# passthrough already being active). Same class of issue as CentOS
+# Stream 9's `crb enable` step in Containerfile.rviz-centos-kilted -
+# CodeReady Builder needs explicit enabling regardless of what other
+# entitled repos are already on.
 RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm \
+    && subscription-manager repos --enable codeready-builder-for-rhel-10-x86_64-rpms \
     && dnf install -y \
     git \
     openssl-devel \
