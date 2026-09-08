@@ -137,6 +137,16 @@ RUN micromamba create -y -n ros_env -c conda-forge -c robostack-humble \
 # include at first glance. Patched directly (sed, below) rather than
 # worked around with a global -include flag, since this is a small,
 # precisely-located upstream gap.
+#
+# --packages-up-to moveit_example kuka_lbr_iisy_moveit_config, not just
+# moveit_example alone: the latter's own launch file resolves
+# kuka_lbr_iisy_moveit_config dynamically at runtime (a Python string built
+# from `robot_family` inside moveit_planning_example.launch.py), not via a
+# package.xml exec_depend - so colcon's static dependency graph can't see
+# it, and --packages-up-to moveit_example alone silently skips it. This
+# Containerfile's default CMD uses kuka_lbr_iisy_moveit_config's own
+# moveit_planning_fake_hardware.launch.py directly anyway (see the CMD's
+# own comment for why), so it needs to be built explicitly regardless.
 RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
     mkdir -p /opt/kuka_ws/src && cd /opt/kuka_ws/src && \
     git clone --branch humble --depth 1 https://github.com/kroshu/kuka_drivers.git && \
@@ -146,7 +156,8 @@ RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
     sed -i '/#define KUKA_DRIVERS_CORE__CONTROL_MODE_HPP_/a\\n#include <cstdint>' \
       kuka_drivers/kuka_drivers_core/include/kuka_drivers_core/control_mode.hpp && \
     cd /opt/kuka_ws && \
-    colcon build --packages-up-to moveit_example --cmake-args -DCMAKE_BUILD_TYPE=Release
+    colcon build --packages-up-to moveit_example kuka_lbr_iisy_moveit_config \
+    --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 RUN chmod -R a+rX /opt/kuka_ws
 
