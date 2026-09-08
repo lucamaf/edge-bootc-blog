@@ -101,7 +101,7 @@ RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
 # CodeReady Builder needs explicit enabling regardless of what other
 # entitled repos are already on.
 RUN crb enable
-RUN dnf remove -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm && dnf install -y \
+RUN dnf remove -y epel-release && dnf install -y \
     git \
     openssl-devel \
     grpc-devel \
