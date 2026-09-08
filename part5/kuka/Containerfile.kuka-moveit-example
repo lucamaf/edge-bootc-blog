@@ -94,6 +94,8 @@ RUN dnf install -y \
     grpc-devel \
     grpc-plugins \
     tinyxml2-devel \
+    libcap-devel \
+    libatomic \
     && dnf clean all
 
 # Micromamba (standalone, no system python/conda needed) to install ROS2
@@ -123,12 +125,26 @@ RUN micromamba create -y -n ros_env -c conda-forge -c robostack-humble \
     && micromamba clean -y -a \
     && chmod -R a+rX /opt/conda
 
+# Upstream bug in kuka_drivers_core: control_mode.hpp uses std::uint8_t
+# (`enum class ControlMode : std::uint8_t`) but never includes <cstdint>.
+# This built fine layered on rviz-humble (conda-forge's own, older
+# compilers package apparently leaked <cstdint> transitively through some
+# other header), but fails outright on CentOS Stream 10's own GCC, which
+# doesn't leak it the same way - std::uint8_t ends up undeclared, and
+# GCC's error recovery on the resulting malformed enum-base-specifier
+# produces a confusing cascade of "elaborated-type-specifier"/"use of enum
+# without previous declaration" errors that look unrelated to a missing
+# include at first glance. Patched directly (sed, below) rather than
+# worked around with a global -include flag, since this is a small,
+# precisely-located upstream gap.
 RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
     mkdir -p /opt/kuka_ws/src && cd /opt/kuka_ws/src && \
     git clone --branch humble --depth 1 https://github.com/kroshu/kuka_drivers.git && \
     git clone --branch master --depth 1 https://github.com/kroshu/kuka_robot_descriptions.git && \
     git clone --branch master --depth 1 https://github.com/kroshu/kuka-external-control-sdk.git && \
     git clone --branch humble --depth 1 https://github.com/kroshu/examples.git kuka_examples && \
+    sed -i '/#define KUKA_DRIVERS_CORE__CONTROL_MODE_HPP_/a\\n#include <cstdint>' \
+      kuka_drivers/kuka_drivers_core/include/kuka_drivers_core/control_mode.hpp && \
     cd /opt/kuka_ws && \
     colcon build --packages-up-to moveit_example --cmake-args -DCMAKE_BUILD_TYPE=Release
 
