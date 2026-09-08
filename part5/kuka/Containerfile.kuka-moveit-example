@@ -100,9 +100,8 @@ RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
 # Stream 9's `crb enable` step in Containerfile.rviz-centos-kilted -
 # CodeReady Builder needs explicit enabling regardless of what other
 # entitled repos are already on.
-RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm \
-    && subscription-manager repos --enable codeready-builder-for-rhel-10-x86_64-rpms \
-    && dnf install -y \
+RUN crb enable
+RUN dnf remove -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm && dnf install -y \
     git \
     openssl-devel \
     grpc-devel \
