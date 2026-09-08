@@ -37,6 +37,18 @@ FROM quay.io/luferrar/part5:rviz-humble
 
 # rviz-humble's ros-humble-desktop does not include MoveIt 2 or the
 # ros2_control stack.
+#
+# compilers/cmake/make/ninja/pkg-config: rviz-humble never needed a C/C++
+# toolchain - every ROS package in it is a precompiled conda binary. This
+# Containerfile is the first one in this project to build ament_cmake
+# packages from source (kuka_drivers_core, kuka_resources,
+# kuka_external_control_sdk, ...), which link against conda-forge-built
+# libraries (rclcpp, hardware_interface, ...). Using conda-forge's own
+# "compilers" meta-package (gcc_linux-64/gxx_linux-64 wrapped as CC/CXX via
+# its activation scripts) instead of UBI10's system gcc-c++, per
+# RoboStack's own documented practice for building from source - avoids a
+# libstdc++ ABI mismatch against those conda-forge-built libraries that a
+# system compiler wouldn't necessarily match.
 RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
     ros-humble-moveit \
     ros-humble-moveit-planners \
@@ -49,6 +61,11 @@ RUN micromamba install -y -n ros_env -c conda-forge -c robostack-humble \
     ros-humble-ros2-controllers-test-nodes \
     ros-humble-joint-state-publisher-gui \
     colcon-common-extensions \
+    compilers \
+    cmake \
+    make \
+    ninja \
+    pkg-config \
     && micromamba clean -y -a \
     && chmod -R a+rX /opt/conda
 
