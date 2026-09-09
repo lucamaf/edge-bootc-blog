@@ -2,46 +2,28 @@
 #
 # Tests https://github.com/kroshu/examples' moveit_example (KUKA iiQKA
 # driver + MoveIt 2) against this project's RHEL10 RT-kernel setup, without
-# real KUKA hardware attached - purely to check whether the driver stack
-# itself (kuka_drivers, the RT control_node with its cpu_affinity/
-# thread_priority/mlockall options, and MoveIt) builds and runs cleanly on
-# RHEL10, using KUKA's own purpose-built mock hardware plugin
+# real KUKA hardware attached, using KUKA's own purpose-built mock hardware plugin
 # (kuka_mock_hardware_interface, selected via mode:=mock in the URDF) in
 # place of the real iiQKA network driver. This validates the ROS2/build/RT
 # side of the stack, not real robot communication (RSI/EAC network I/O).
 #
-#
 # Four source repos, all pointed at the ROS2-Jazzy-tracking side of each -
 # none of the KUKA repos publish conda/RPM packages, so everything
 # KUKA-specific is built from source in one colcon workspace:
-#   - kroshu/kuka_drivers (branch: master, currently = Jazzy) - the driver
+#   - kroshu/kuka_drivers: the driver
 #     itself (kuka_iiqka_eac_driver, kuka_drivers_core,
 #     kuka_driver_interfaces, and the custom ros2_control controllers it
 #     needs: kuka_control_mode_handler, kuka_event_broadcaster,
-#     joint_group_impedance_controller). This project originally used the
-#     `humble` branch instead (this project's rviz-tests had already
-#     proven Humble as an RHEL10 path, and Jazzy would've been a second new
-#     variable at once) - but kuka_robot_descriptions' single,
-#     distro-agnostic branch (below) turned out to genuinely need
-#     newer-than-Humble ros2_control/MoveIt2 features (an async-hardware-
-#     component URDF tag Humble's hardware_interface parser doesn't
-#     recognize at all, and a MoveIt CHOMP config parameter type Humble's
-#     moveit_cpp doesn't accept) - both confirmed as hard runtime crashes,
-#     not just warnings, when actually run on Humble. Jazzy is what
-#     kuka_robot_descriptions' current content actually targets, matching
-#     kuka_drivers' own README recommendation.
-#   - kroshu/kuka_robot_descriptions (branch: master) - URDF/meshes/moveit
+#     joint_group_impedance_controller).
+#   - kroshu/kuka_robot_descriptions: URDF/meshes/moveit
 #     configs for all KUKA robot families, plus kuka_mock_hardware_interface
 #     (the mock plugin this test actually exercises). Distro-agnostic
 #     (source-only xacro/config/launch, no compiled ROS2-version-specific
-#     code), hence no per-distro branch, confirmed against upstream.repos
-#     in kuka_drivers itself pinning this repo to "master" regardless of
-#     which ROS2-distro branch of kuka_drivers is in use.
-#   - kroshu/kuka-external-control-sdk (branch: master) - kuka_external_
+#     code).
+#   - kroshu/kuka-external-control-sdk: kuka_external_
 #     control_sdk, a non-ROS SDK wrapped with a package.xml so colcon can
 #     build it; also distro-agnostic for the same reason.
-#   - kroshu/examples (branch: master, currently = Jazzy) - moveit_example
-#     itself.
+#   - kroshu/examples: moveit_example  itself.
 #
 # --packages-up-to moveit_example, not a full workspace build: kuka_drivers
 # also contains the RSI/FRI/KSS drivers and controllers for KUKA's other
@@ -59,16 +41,10 @@ RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-$(r
     && dnf clean all
 
 # System libraries needed for Qt's xcb (X11/XWayland) platform plugin, and
-# the GL/EGL dispatch layer the NVIDIA driver libraries (mounted in by the
-# host's nvidia-container-toolkit hook at runtime) hook into - same
-# rationale as ../rviz-tests/Containerfile.rviz-humble. Plus the build
+# the GL/EGL dispatch layer the NVIDIA driver libraries hook into. Plus the build
 # toolchain, grpc/protobuf/openssl kuka_external_control_sdk's "iiqka"
 # (KUKA iiQKA) client library needs, and tinyxml2-devel for its "kss"
-# (KUKA System Software / RSI, industrial robots) client library - not
-# actually needed by moveit_example (which only uses the iiqka library),
-# but colcon builds ament packages as a whole, and kuka_external_control_
-# sdk's CMakeLists.txt compiles both client libraries unconditionally with
-# no per-subdirectory build option to skip kss.
+# (KUKA System Software / RSI, industrial robots) client library.
 RUN dnf install -y \
     ca-certificates \
     curl \
@@ -113,8 +89,7 @@ RUN curl -fsSL -o /usr/local/bin/micromamba \
     && chmod +x /usr/local/bin/micromamba
 
 # ros-base + rviz2 + ros2launch, not the full ros-jazzy-desktop metapackage,
-# plus MoveIt 2/ros2_control, which ros-base doesn't include either. All
-# package names confirmed present on robostack-jazzy before adding here.
+# plus MoveIt 2/ros2_control, which ros-base doesn't include either.
 RUN micromamba create -y -n ros_env -c conda-forge -c robostack-jazzy \
     ros-jazzy-ros-base \
     ros-jazzy-rviz2 \
@@ -133,48 +108,11 @@ RUN micromamba create -y -n ros_env -c conda-forge -c robostack-jazzy \
     && micromamba clean -y -a \
     && chmod -R a+rX /opt/conda
 
-# (No <cstdint> patch needed here, unlike the earlier Humble/rviz-humble
-# attempt: kuka_drivers_core/include/kuka_drivers_core/control_mode.hpp on
-# the master branch already has the #include <cstdint> that the humble
-# branch was missing - confirmed by reading the actual file on master
-# before relying on it.)
-#
-# --packages-up-to moveit_example kuka_lbr_iisy_moveit_config
-# kuka_mock_hardware_interface, not just moveit_example alone: neither of
-# the other two is a package.xml exec_depend of anything actually being
-# built, so colcon's static dependency graph can't see either of them.
-# kuka_lbr_iisy_moveit_config is resolved dynamically at runtime (a Python
-# string built from `robot_family` inside
-# moveit_planning_example.launch.py) - see the CMD's own comment for why
-# this Containerfile uses its moveit_planning_fake_hardware.launch.py
-# directly regardless, which needs it built explicitly.
-# kuka_mock_hardware_interface is resolved even more indirectly - it's the
-# pluginlib class (kuka_mock_hardware_interface::KukaMockHardwareInterface)
-# the URDF's `mode:="mock"` conditional selects by string name in
-# kuka_lbr_iisy_ros2_control_macro.xacro, discovered at runtime purely via
-# pluginlib's ament-index plugin registry, with no package.xml dependency
-# edge to it anywhere in this workspace at all. Without it built,
-# controller_manager fails to load the hardware plugin
-# (LibraryLoadException: "does not exist. Declared types are
-# kuka_eac::KukaEACHardwareInterface mock_components/GenericSystem" -
-# confirmed directly from the actual runtime log, not guessed), which is
-# also why it then hangs waiting on the robot_description topic - that's a
-# downstream symptom of the failed plugin load, not a separate issue.
-#
-# LIBRARY_PATH/RPATH: using the system compiler (see the grpc/protobuf
-# comment above for why - conda-forge's own "compilers" package isn't an
-# option here) means losing the automatic library-path/RPATH wiring that
+# LIBRARY_PATH/RPATH: using the system compiler means losing the automatic library-path/RPATH wiring that
 # package's activation scripts normally provide for anything linking
-# against conda-forge-built libraries. First hit for liblttng-ust/
-# liblttng-ust-common (controller_manager's tracing support pulls them in)
-# - genuinely present under /opt/conda/envs/ros_env/lib, just not on the
-# system linker's default search path - but this will affect any
-# conda-forge library the KUKA code links against going forward, not just
-# this one, so fixing it generally: LIBRARY_PATH for the linker to find
+# against conda-forge-built libraries. LIBRARY_PATH for the linker to find
 # them at build time, CMAKE_INSTALL_RPATH so the resulting .so/executables
-# can find them again at runtime without needing LD_LIBRARY_PATH set
-# (conda environments deliberately don't set that on activation, relying
-# on RPATH instead - so this has to be baked in at build time here).
+# can find them again at runtime without needing LD_LIBRARY_PATH set.
 RUN eval "$(micromamba shell hook -s bash)" && micromamba activate ros_env && \
     mkdir -p /opt/kuka_ws/src && cd /opt/kuka_ws/src && \
     git clone --branch master --depth 1 https://github.com/kroshu/kuka_drivers.git && \
@@ -206,13 +144,11 @@ WORKDIR /opt
 ENTRYPOINT ["/usr/local/bin/entrypoint-kuka.sh"]
 
 # The self-contained mock-hardware entry point, lives in
-# kuka_lbr_iisy_moveit_config (not moveit_example itself), and hardcodes
+# kuka_lbr_iisy_moveit_config, and hardcodes
 # mode:="mock" internally (via kuka_resources' shared
 # fake_hardware_planning_template.launch.py). Run one of moveit_example's
 # own planning nodes (e.g. `ros2 run moveit_example
 # moveit_basic_planners_example`) in a second terminal against this to
-# actually exercise motion planning through the stack. For RT-tuned
-# testing instead of this convenience default, see the README's "Testing
-# RT Performance" section.
+# actually exercise motion planning through the stack.
 CMD ["ros2", "launch", "kuka_lbr_iisy_moveit_config", \
      "moveit_planning_fake_hardware.launch.py", "robot_model:=lbr_iisy3_r760"]
