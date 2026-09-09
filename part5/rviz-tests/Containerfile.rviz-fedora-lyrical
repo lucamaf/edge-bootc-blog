@@ -6,8 +6,7 @@
 # Native Wayland tested and confirmed NOT to work: QT_QPA_PLATFORM=wayland 
 # gets past Qt itself but rviz-ogre-vendor's window creation is still hardcoded to GLX/X11 -
 # "RenderingAPIException: Invalid parentWindowHandle (wrong server or
-# screen) in GLXWindow::create at .../GLX/OgreGLXWindow.cpp". xcb (the
-# default here) launches cleanly with no errors.
+# screen) in GLXWindow::create at .../GLX/OgreGLXWindow.cpp".
 FROM registry.fedoraproject.org/fedora:44
 
 RUN dnf install -y dnf-plugins-core \
@@ -17,11 +16,7 @@ RUN dnf install -y dnf-plugins-core \
 # yaml-cpp: librviz_common.so links directly against libyaml-cpp.so.0.8
 # (confirmed via ldd), but none of the hellaenergy/ros2 Copr's rviz RPMs
 # (rviz2, rviz-common, rviz-rendering, rviz-ogre-vendor,
-# rviz-default-plugins) declare it as a Requires - a packaging omission in
-# that Copr, not a Fedora/dnf weak-deps issue (dnf.conf here has no
-# install_weak_deps setting, and the missing Requires is absent even from
-# each package's raw installed RPM metadata, not just filtered by weak-deps
-# skipping). So we have to install it explicitly here, otherwise rviz2 fails at runtime
+# rviz-default-plugins) declare it as a Requires, so we have to install it explicitly here, otherwise rviz2 fails at runtime
 RUN dnf install -y \
     mesa-libGL \
     mesa-libEGL \
@@ -43,8 +38,6 @@ RUN dnf install -y \
 
 # ros-lyrical-std-srvs: rviz2 fails at dlopen with
 # "libstd_srvs__rosidl_typesupport_cpp.so: cannot open shared object file"
-# without it, same class of issue as the yaml-cpp fix above (a runtime
-# dependency the Copr's rviz/rviz2 RPMs don't declare as an RPM Requires).
 RUN dnf install -y ros-lyrical-ros-desktop ros-lyrical-std-srvs \
     && dnf clean all
 

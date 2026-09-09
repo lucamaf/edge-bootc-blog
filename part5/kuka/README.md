@@ -80,7 +80,7 @@ podman build -t quay.io/luferrar/part5:kuka-moveit-example -f Containerfile.kuka
 
 ## Run
 
-Same X11/GPU passthrough launcher as `rviz-tests` — no new script needed:
+Same X11/GPU passthrough launcher as `rviz-tests`:
 
 ```bash
 cd ../rviz-tests
@@ -92,12 +92,24 @@ This brings up the mock driver, `ros2_control` controllers, `move_group`, and RV
 instead of `moveit_example`'s own launch file, which doesn't wire up mock mode on its own).
 
 To actually exercise motion planning through the stack, run one of `moveit_example`'s own planning nodes
-in a second terminal against the already-running container:
+against the already-running container — **not** a second `run-rviz-test.sh` invocation. `run-rviz-test.sh`
+doesn't set `--network host`, so podman gives each `run` its own isolated network namespace; two separate
+invocations can never discover each other over ROS2 DDS regardless of what command the second one runs
+(confirmed the hard way: it just times out waiting for `robot_description` and crashes on shutdown).
+Instead, `exec` into the *same* container terminal 1 started (no `--name` is set, so grab its ID first):
 
 ```bash
-./run-rviz-test.sh quay.io/luferrar/part5:kuka-moveit-example -- \
-    ros2 run moveit_example moveit_basic_planners_example
+CID=$(podman ps --filter "ancestor=quay.io/luferrar/part5:kuka-moveit-example" --format "{{.ID}}")
+podman exec -it "$CID" bash -c '
+  eval "$(micromamba shell hook -s bash)"
+  micromamba activate ros_env
+  source /opt/kuka_ws/install/local_setup.bash
+  ros2 run moveit_example moveit_basic_planners_example
+'
 ```
+
+(The three lines before `ros2 run` replicate what `entrypoint.sh` normally does — `podman exec` bypasses
+the container's `ENTRYPOINT`, so the new process doesn't get that activation for free.)
 
 Other available example nodes (same package, swap the executable name): `moveit_collision_avoidance_example`,
 `moveit_constrained_planning_example`, `moveit_depalletizing_example`.
@@ -117,21 +129,38 @@ exposes `rt_core`, `rt_prio`, `non_rt_cores`, `lock_memory`, `roundtrip_time` as
 
 To exercise the RT-tuned path, launch the driver and MoveIt separately instead of using the default
 `CMD` (`moveit_planning_example.launch.py` itself doesn't forward these args, so passing them on that
-launch file's command line would just fail):
+launch file's command line would just fail). Only the *first* of these is a `run-rviz-test.sh` invocation
+— it starts the container. The other two must be `podman exec` into that same container, not separate
+`run-rviz-test.sh` calls: `run-rviz-test.sh` doesn't set `--network host`, so each `podman run` gets its
+own isolated network namespace, and separate invocations can never discover each other over ROS2 DDS no
+matter what command each one runs (confirmed directly — a second `run-rviz-test.sh` call here just times
+out waiting for `robot_description` and crashes on shutdown; see the "Run" section above for the same
+issue in the simpler mock-hardware case).
 
 ```bash
-# Terminal 1 - RT-tuned control loop against the mock hardware plugin
+# Terminal 1 - starts the container; RT-tuned control loop against the mock hardware plugin
 ./run-rviz-test.sh quay.io/luferrar/part5:kuka-moveit-example -- \
     ros2 launch kuka_iiqka_eac_driver startup.launch.py \
     mode:=mock rt_core:=1 non_rt_cores:=2,3 rt_prio:=80 roundtrip_time:=1000
+```
 
-# Terminal 2 - MoveIt + RViz, once terminal 1's controllers are active
-./run-rviz-test.sh quay.io/luferrar/part5:kuka-moveit-example -- \
-    ros2 launch kuka_lbr_iisy_moveit_config moveit_server.launch.py robot_model:=lbr_iisy3_r760
+```bash
+# Get the container ID once terminal 1's controllers are active, then use it for terminals 2 and 3
+CID=$(podman ps --filter "ancestor=quay.io/luferrar/part5:kuka-moveit-example" --format "{{.ID}}")
 
-# Terminal 3 - generate actual motion/load through the loop
-./run-rviz-test.sh quay.io/luferrar/part5:kuka-moveit-example -- \
-    ros2 run moveit_example moveit_basic_planners_example
+# Terminal 2 - MoveIt + RViz, exec'd into the same container
+podman exec -it "$CID" bash -c '
+  eval "$(micromamba shell hook -s bash)"; micromamba activate ros_env
+  source /opt/kuka_ws/install/local_setup.bash
+  ros2 launch kuka_lbr_iisy_moveit_config moveit_server.launch.py robot_model:=lbr_iisy3_r760
+'
+
+# Terminal 3 - generate actual motion/load through the loop, same container again
+podman exec -it "$CID" bash -c '
+  eval "$(micromamba shell hook -s bash)"; micromamba activate ros_env
+  source /opt/kuka_ws/install/local_setup.bash
+  ros2 run moveit_example moveit_basic_planners_example
+'
 ```
 
 Adjust `rt_core`/`non_rt_cores` to match whichever cores are actually isolated on the host (see

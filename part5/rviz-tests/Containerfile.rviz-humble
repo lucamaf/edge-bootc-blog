@@ -12,8 +12,7 @@ RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.
 # System libraries needed for Qt's xcb (X11/XWayland) platform plugin, and
 # the GL/EGL dispatch layer that the NVIDIA driver libraries mounted in by
 # the host's nvidia-container-toolkit hook into at runtime. The wayland-*
-# libs are kept in case a future Qt build in this env picks up wayland
-# support, but nothing here currently uses them.
+# libs are kept in case a future Qt build in this env picks up wayland support
 RUN dnf install -y \
     ca-certificates \
     curl \
@@ -37,8 +36,7 @@ RUN dnf install -y \
     glx-utils \
     && dnf clean all
 
-# Micromamba (standalone, no system python/conda needed) to install ROS2 via
-# RoboStack.
+# Micromamba (standalone, no system python/conda needed) to install ROS2 via RoboStack.
 ENV MAMBA_ROOT_PREFIX=/opt/conda
 RUN curl -fsSL -o /usr/local/bin/micromamba \
     https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64 \
@@ -63,7 +61,7 @@ RUN chmod +x /usr/local/bin/entrypoint-humble.sh /usr/local/bin/check-gpu.sh
 # of its own beyond the bind-mounted one, see run-rviz-test.sh) has
 # somewhere to put Qt/ROS config files.
 ENV HOME=/tmp
-# Qt's xcb platform plugin is the only one that works with X11/XWayland, so
+# Qt's xcb platform plugin is the only one that works with X11/XWayland
 ENV QT_QPA_PLATFORM=xcb
 # The NVIDIA driver libraries are mounted in by the host's nvidia-container-toolkit hook at runtime, so tell the container to make them available to the ROS2 GUI app (rviz2) and any other GPU-using processes.
 ENV NVIDIA_DRIVER_CAPABILITIES=all

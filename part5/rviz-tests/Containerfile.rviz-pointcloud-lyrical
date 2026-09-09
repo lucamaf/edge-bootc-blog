@@ -1,7 +1,7 @@
 # tagged as quay.io/luferrar/part5:rviz-pointcloud-lyrical
 #
 # gpu_pointcloud_test (../gpu_pointcloud_test/), same package as
-# Containerfile.pointcloud/Containerfile.pointcloud-rpm, layered on the
+# Containerfile.pointcloud/Containerfile.pointcloud-kilted, layered on the
 # Fedora + official Copr RPMs image (quay.io/luferrar/part5:rviz-lyrical)
 #
 FROM quay.io/luferrar/part5:rviz-lyrical

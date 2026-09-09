@@ -1,14 +1,7 @@
 # tagged as quay.io/luferrar/part5:rviz-pointcloud
 #
-# gpu_pointcloud_test (../gpu_pointcloud_test/) - standalone, NOT layered on
-# rviz-humble. That image installs ros-humble-desktop (14GB), most of which
-# (rqt, demo nodes, turtlesim, teleop packages, ...) this test never touches.
 # gpu_pointcloud_test's own README documents the actual split: rviz2 isn't in
-# ros-base, only in the full desktop metapackage - so ros-base + rviz2 is all
-# that's actually needed here. The Ogre/Qt cost of rviz2 itself is
-# unavoidable for GPU visualization either way; this just drops desktop's
-# unrelated bulk on top of it.
-#
+# ros-base, so ros-base + rviz2 is all that's actually needed here.
 FROM registry.access.redhat.com/ubi10/ubi:latest
 
 RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm \
@@ -76,7 +69,6 @@ WORKDIR /opt
 ENTRYPOINT ["/usr/local/bin/entrypoint-pointcloud.sh"]
 
 # Tuned down from the package's own defaults (num_points=1000000
-# gpu_iterations=400 neighbor_sample=3000, ~3.7s/frame measured on this
-# Quadro P620) for a smooth default experience on this hardware. 
+# gpu_iterations=400 neighbor_sample=3000) for a smooth default experience on this hardware. 
 CMD ["ros2", "launch", "gpu_pointcloud_test", "gpu_pointcloud.launch.py", \
      "num_points:=200000", "gpu_iterations:=80", "neighbor_sample:=800"]

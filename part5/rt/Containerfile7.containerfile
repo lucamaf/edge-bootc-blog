@@ -41,8 +41,8 @@ RUN rm /usr/lib/bootc/kargs.d/*.toml ;\
   echo -e "kargs = [\"default_hugepagesz=1G\"]\nmatch-architectures = [\"x86_64\", \"aarch64\"]" > /usr/lib/bootc/kargs.d/03-hugepage.toml ; \
   echo -e "kargs = [\"idle=poll\"]\nmatch-architectures = [\"x86_64\", \"aarch64\"]" > /usr/lib/bootc/kargs.d/04-idle-pool.toml ; \
   echo -e "kargs = [\"rcutree.nocb_patience_delay=1000\"]\nmatch-architectures = [\"x86_64\", \"aarch64\"]" > /usr/lib/bootc/kargs.d/05-rcu-patience.toml ; \
-  echo -e "kargs = [\"console=ttyS1,115200\"]\nmatch-architectures = [\"x86_64\"]" > /usr/lib/bootc/kargs.d/00-console-intel.toml ; \
-  echo -e "kargs = [\"console=tty0 console=ttyAMA0,115200n81\"]\nmatch-architectures = [\"aarch64\"]" > /usr/lib/bootc/kargs.d/00-console-arm.toml ;  
+  echo -e "kargs = [\"console=ttyS1,115200\"]\nmatch-architectures = [\"x86_64\"]" > /usr/lib/bootc/kargs.d/00-console-intel.toml ;
+  #echo -e "kargs = [\"console=tty0 console=ttyAMA0,115200n81\"]\nmatch-architectures = [\"aarch64\"]" > /usr/lib/bootc/kargs.d/00-console-arm.toml ;  
 
 ARG RTCPU_LIST=1
 #adding in the end so that if we build image for guest and host we can use cache

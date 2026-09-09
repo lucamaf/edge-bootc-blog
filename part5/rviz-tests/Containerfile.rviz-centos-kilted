@@ -5,9 +5,7 @@
 #
 FROM quay.io/centos/centos:stream9
 
-# EPEL + CodeReady Builder (CRB), exactly per the install guide - except
-# curl. We only need curl for a trivial HTTPS GET below, which curl-minimal already handles,
-# so it's simplest to just not install the full package at all.
+# EPEL + CodeReady Builder (CRB), exactly per the above install guide
 RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-$(rpm -E %rhel).noarch.rpm \
     && dnf install -y dnf-plugins-core \
     && dnf config-manager --set-enabled crb \
@@ -21,8 +19,7 @@ RUN ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastruc
 # X11/XWayland + GL/EGL dispatch libraries for Qt's xcb platform plugin and
 # GPU rendering.
 #
-# qt5-qtwayland: unlike RoboStack/conda-forge's Qt build (which has no
-# wayland platform plugin at all), this RPM exists on CentOS Stream 9's own AppStream repo.
+# qt5-qtwayland: unlike RoboStack/conda-forge's Qt build this RPM exists on CentOS Stream 9's own AppStream repo.
 RUN dnf install -y \
     mesa-libGL \
     mesa-libEGL \

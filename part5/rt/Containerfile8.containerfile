@@ -6,11 +6,9 @@ FROM quay.io/luferrar/part5:device007rt
 
 # upgrade and install gnuplot
 # --exclude on the plain kernel packages stops a bare "dnf upgrade" from
-# silently pulling the standard kernel back in alongside kernel-rt (nothing
-# at the RPM level prevents them being co-installed); kernel-rt-* itself is
+# silently pulling the standard kernel back in alongside kernel-rt, kernel-rt-* itself is
 # still upgraded normally. The find/rm mirrors the cleanup in Containerfile7
-# as a second line of defense in case something still slips a non-rt kernel
-# directory in.
+#  in case something still slips a non-rt kernel directory in.
 RUN dnf -y upgrade --exclude=kernel --exclude=kernel-core --exclude=kernel-modules --exclude=kernel-modules-extra  --exclude=kernel-modules-core && \
     dnf -y install gnuplot && \
     dnf clean all && \
