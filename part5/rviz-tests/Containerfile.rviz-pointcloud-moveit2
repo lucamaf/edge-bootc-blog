@@ -53,10 +53,17 @@ RUN apt-get update -q && apt-get install -y --no-install-recommends \
 # ("externally managed environment") by default, refusing to install into
 # the system Python without either a venv or this explicit override -
 # fine here since this container has no other Python workload to
-# conflict with. NVIDIA's unified cuda-toolkit metapackage rather than
-# trusting cupy-cuda12x's own [ctk] extra - see the other pointcloud
-# variants' Containerfiles for why.
-RUN pip3 install --no-cache-dir --break-system-packages --upgrade \
+# conflict with. --ignore-installed: the base image already has
+# python3-numpy installed via apt/dpkg, which has no pip RECORD metadata
+# - pip's default --upgrade behavior tries to uninstall it first and fails
+# outright ("Cannot uninstall numpy 1.26.4 ... installed by debian"), a
+# well-known pip/Debian conflict; --ignore-installed tells pip to install
+# fresh over it instead of attempting that uninstall, safe here since
+# nothing else in this container depends on the apt-provided numpy.
+# NVIDIA's unified cuda-toolkit metapackage rather than trusting
+# cupy-cuda12x's own [ctk] extra - see the other pointcloud variants'
+# Containerfiles for why.
+RUN pip3 install --no-cache-dir --break-system-packages --ignore-installed --upgrade \
     cupy-cuda12x \
     "cuda-toolkit[cublas,cudart,cufft,curand,cusolver,cusparse,nvrtc]==12.*" \
     numpy
