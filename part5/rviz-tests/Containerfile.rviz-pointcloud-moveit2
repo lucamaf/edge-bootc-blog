@@ -70,7 +70,11 @@ RUN pip3 install --no-cache-dir --break-system-packages --ignore-installed --upg
 
 COPY gpu_pointcloud_test /opt/gpu_pointcloud_ws/src/gpu_pointcloud_test
 
-RUN source /opt/ros/jazzy/setup.bash && \
+# `.`, not `source`: Containerfile RUN steps execute via /bin/sh, which on
+# this Ubuntu-based image is dash, not bash - dash has no `source` builtin,
+# only the POSIX `.` command (every other image in this directory is
+# RHEL-family, where this distinction hasn't come up before).
+RUN . /opt/ros/jazzy/setup.bash && \
     cd /opt/gpu_pointcloud_ws && \
     colcon build --packages-select gpu_pointcloud_test
 
