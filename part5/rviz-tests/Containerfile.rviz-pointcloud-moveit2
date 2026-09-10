@@ -70,13 +70,17 @@ RUN pip3 install --no-cache-dir --break-system-packages --ignore-installed --upg
 
 COPY gpu_pointcloud_test /opt/gpu_pointcloud_ws/src/gpu_pointcloud_test
 
-# `.`, not `source`: Containerfile RUN steps execute via /bin/sh, which on
-# this Ubuntu-based image is dash, not bash - dash has no `source` builtin,
-# only the POSIX `.` command (every other image in this directory is
-# RHEL-family, where this distinction hasn't come up before).
-RUN . /opt/ros/jazzy/setup.bash && \
+# bash -c, not a plain `.`/`source`: Containerfile RUN steps execute via
+# /bin/sh, which on this Ubuntu-based image is dash, not bash - and
+# setup.bash's own content uses bash-specific syntax (${BASH_SOURCE[0]}
+# array-indexing), which dash can't parse even via the POSIX `.` command
+# ("Bad substitution"). Explicitly invoking bash here keeps using
+# setup.bash (`.sh` also exists and is dash-safe, but .bash is what every
+# other image in this directory sources, for consistency) rather than
+# switching sourced files just for this one step.
+RUN bash -c '. /opt/ros/jazzy/setup.bash && \
     cd /opt/gpu_pointcloud_ws && \
-    colcon build --packages-select gpu_pointcloud_test
+    colcon build --packages-select gpu_pointcloud_test'
 
 COPY rviz-tests/entrypoint-pointcloud-moveit2.sh /usr/local/bin/entrypoint-pointcloud-moveit2.sh
 COPY rviz-tests/check-gpu.sh /usr/local/bin/check-gpu.sh
