@@ -94,8 +94,7 @@ instead of `moveit_example`'s own launch file, which doesn't wire up mock mode o
 To actually exercise motion planning through the stack, run one of `moveit_example`'s own planning nodes
 against the already-running container — **not** a second `run-rviz-test.sh` invocation. `run-rviz-test.sh`
 doesn't set `--network host`, so podman gives each `run` its own isolated network namespace; two separate
-invocations can never discover each other over ROS2 DDS regardless of what command the second one runs
-(confirmed the hard way: it just times out waiting for `robot_description` and crashes on shutdown).
+invocations can never discover each other over ROS2 DDS regardless of what command the second one runs.
 Instead, `exec` into the *same* container terminal 1 started (no `--name` is set, so grab its ID first):
 
 ```bash
@@ -104,8 +103,7 @@ podman exec -it "$CID" bash -c '
   eval "$(micromamba shell hook -s bash)"
   micromamba activate ros_env
   source /opt/kuka_ws/install/local_setup.bash
-  ros2 run moveit_example moveit_basic_planners_example
-'
+  ros2 run moveit_example moveit_basic_planners_example'
 ```
 
 (The three lines before `ros2 run` replicate what `entrypoint.sh` normally does — `podman exec` bypasses
