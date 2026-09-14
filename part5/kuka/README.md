@@ -1,62 +1,34 @@
-# KUKA Driver Compatibility Test (moveit_example)
+# KUKA Driver Compatibility Test
 
-Tests [kroshu/examples](https://github.com/kroshu/examples)' `moveit_example` — KUKA's own MoveIt 2
-integration demo for the iiQKA driver — against this project's RHEL10 + real-time kernel setup, on
-`lenovo-p330` (currently running `6.12.0-211.51.1.el10_2.x86_64+rt`).
+Tests [kroshu/examples](https://github.com/kroshu/examples)' `moveit_example`, KUKA's own MoveIt 2
+integration and containerized demo for the iiQKA driver, running on RHEL10 + real-time kernel, on `lenovo-p330`.
 
-## What this validates, and what it doesn't
+## KUKA validation process
 
-No real KUKA robot is attached. This runs against
-[`kuka_mock_hardware_interface`](https://github.com/kroshu/kuka_robot_descriptions/tree/master/kuka_mock_hardware_interface) —
-a mock `ros2_control` hardware plugin KUKA ships specifically for this purpose (selected via `mode:=mock`
-in the robot's URDF), not the standard `mock_components/GenericSystem`, and not Gazebo.
+No physical KUKA robot is attached. This runs against [`kuka_mock_hardware_interface`](https://github.com/kroshu/kuka_robot_descriptions/tree/master/kuka_mock_hardware_interface), a mock `ros2_control` hardware plugin KUKA ships specifically for this purpose (selected via `mode:=mock` in the robot's URDF).
 
-That means this **does** validate:
 - The actual driver source (`kuka_iiqka_eac_driver`, `kuka_drivers_core`, the custom KUKA `ros2_control`
-  controllers) builds cleanly against ROS2 Jazzy — confirmed two ways: CentOS Stream 10/RoboStack (runs
-  fine via podman on the RHEL10 host regardless of its own base OS) and Ubuntu 24.04/MoveIt2's official
-  image (see "Two images, two bases" below)
+  controllers) builds cleanly against ROS2 Jazzy, confirmed on Ubuntu 24.04/MoveIt2's official
+  image
 - The RT-relevant control loop code — `control_node`'s `cpu_affinity`/`thread_priority`/`lock_memory`
-  (`mlockall`) options — runs without error
+  (`mlockall`) options runs without error
 - MoveIt 2 planning, `ros2_control` controller spawning/activation, and the driver's lifecycle-node
   orchestration all work together on this host
 
-This does **not** validate real robot communication — the RSI/EAC network protocol, actual motion
-execution, or anything specific to talking to a physical LBR iisy over the network. It's a build/runtime
-compatibility check for the ROS2 stack, not a robot-communication test.
+This does **not** validate real robot communication, the RSI/EAC network protocol, actual motion
+execution.
 
-## Why Jazzy, matching the upstream-recommended branch
+## Two image test
 
-This started on Humble instead — this project's most-proven RHEL10 ROS2 path, and using it kept this
-test to one new variable at a time rather than adding an unvalidated ROS2 distro on top of an already-new
-integration. That held up until actually *running* it: `kuka_robot_descriptions` has a single,
-distro-agnostic branch (`master`), and its current content turned out to genuinely need
-newer-than-Humble features — an async-hardware-component URDF tag (`<properties><async .../></properties>`
-in the `<ros2_control>` block) that Humble's `hardware_interface` XML parser doesn't recognize at all
-(`terminate called ... invalid tag name properties`, not a warning — a hard crash), and a MoveIt CHOMP
-config parameter (`chomp.request_adapters`) using a newer list type that Humble's `moveit_cpp` rejects
-(`InvalidParameterTypeException`, also a hard crash). Both confirmed by actually running the container,
-not just reading source. Jazzy is what this content actually targets — matching `kroshu/kuka_drivers`'
-own README recommendation — so that's what this now uses instead of continuing to patch around
-Humble-specific gaps with no way to know how many more there were.
+This test is built two ways:
 
-## Two images, two bases
-
-This test is built two ways — same source repos, same validation scope, different underlying OS/ROS2
-packaging:
-
-- **`Containerfile.kuka-moveit-example`** (`kuka-moveit-example`) — CentOS Stream 10 + RoboStack/conda,
-  built standalone from scratch. See "Why CentOS Stream 10" below for why this path exists and what it
-  took to get working.
-- **`Containerfile.kuka-moveit2`** (`kuka-moveit2`) — layered directly on MoveIt2's own official Docker
+- **`Containerfile.kuka-moveit-example`** (`kuka-moveit-example`): CentOS Stream 10 with RoboStack/conda,
+  built standalone from scratch.   
+- **`Containerfile.kuka-moveit2`** (`kuka-moveit2`), layered directly on MoveIt2's own official Docker
   image (`moveit/moveit2:jazzy-release`, Ubuntu 24.04), the same approach
-  `../rviz-tests/Containerfile.rviz-pointcloud-moveit2` used for the GPU pointcloud test. See "Why also
-  MoveIt2/Ubuntu" below.
+  `../rviz-tests/Containerfile.rviz-pointcloud-moveit2` used for the GPU pointcloud test.
 
-Build/Run/Testing-RT-Performance sections further down show both; the commands differ slightly (image
-tag, and how the environment gets activated inside `podman exec` — `micromamba activate` for the CentOS
-image vs. a plain `source` for the Ubuntu one).
-
+<!--
 ## Why CentOS Stream 10, not UBI10/rviz-humble
 
 This was originally layered on `../rviz-tests`' `rviz-humble` image (UBI10-based), but that hit a real
@@ -73,51 +45,37 @@ matching what the CentOS Stream/RHEL-proper install guide expected) — same fix
 UBI, where CRB is a normal, unrestricted repo. This is a **standalone** image (CentOS Stream 10 +
 RoboStack, redoing the X11/GPU/ROS2 setup `rviz-humble` normally provides) rather than layered on
 `rviz-humble`.
+--> 
 
-## Why also MoveIt2/Ubuntu
+### MoveIt2/Ubuntu test
 
-Once `../rviz-tests/Containerfile.rviz-pointcloud-moveit2` showed how much simpler building on top of
-MoveIt2's own official image can be, it was worth trying the same approach here instead of accepting the
-CentOS Stream 10 build's CRB/protobuf wrangling as unavoidable. It turns out meaningfully simpler, for
-reasons specific to what the CentOS build had to work around:
+Simpler image build thanks to:  
 
 - **No CRB/protobuf-version fight at all.** `libgrpc++-dev`, `protobuf-compiler-grpc`, `libtinyxml2-dev`,
-  and `libcap-dev` are normal, always-available Ubuntu 24.04 apt packages — confirmed directly against
-  the real image (`apt-cache policy`) before writing the Containerfile, not assumed.
+  and `libcap-dev` are normal, always-available Ubuntu 24.04 apt packages.  
 - **No symlink needed for `grpc_cpp_plugin`.** `kuka_external_control_sdk`'s CMakeLists.txt hardcodes
-  the plugin path as `/usr/bin/grpc_cpp_plugin` (not configurable) — Debian's `protobuf-compiler-grpc`
-  package installs it at exactly that path.
-- **No `LIBRARY_PATH`/`CMAKE_INSTALL_RPATH` workaround needed.** The CentOS build needed this because it
-  used the system compiler against a conda-forge-built ROS2 (RoboStack) — two separately-built
-  toolchains that don't share a library search path by default. There's no conda environment here at
-  all; ROS2, the compiler, and everything this Containerfile builds from source are all part of the same
-  apt-based system.
+  the plugin path as `/usr/bin/grpc_cpp_plugin`, Debian's `protobuf-compiler-grpc` package installs it at exactly that path.
+- **No `LIBRARY_PATH`/`CMAKE_INSTALL_RPATH` workaround needed.** ROS2, the compiler, and everything this Containerfile builds from source are all part of the same apt-based system.
 - **Most of the needed ROS2 packages are already installed.** `moveit/moveit2:jazzy-release`'s own
   `ros-jazzy-moveit-*` install already transitively pulls in `controller-manager`, `moveit-visual-tools`,
   `ros2launch`, and `joint-state-publisher-gui` (confirmed via `dpkg -l` against the real image). Only
   `ros2-control`/`ros2-controllers`/`ros2-controllers-test-nodes` needed adding explicitly.
 
-One thing that *is* shared with the Ubuntu-based pointcloud image: `/bin/sh` is `dash` here, not `bash`,
-and `setup.bash`'s own content uses bash-specific syntax dash can't parse — the colcon build step needs
-an explicit `bash -c` wrapper, same as `Containerfile.rviz-pointcloud-moveit2`.
+## Kuka Source layout
 
-## Source layout
-
-Four repos, built together as one colcon workspace (see the Containerfile's own comments for the full
-reasoning per repo):
+Four repos, built together as one colcon workspace:
 
 | Repo | Branch | Why |
 |---|---|---|
 | `kroshu/kuka_drivers` | `master` (= Jazzy) | the driver itself, matches the ROS2 distro choice above |
-| `kroshu/kuka_robot_descriptions` | `master` | URDF/moveit-configs/mock hardware plugin — distro-agnostic, no per-ROS2-version branch exists |
-| `kroshu/kuka-external-control-sdk` | `master` | non-ROS SDK wrapped for colcon — also distro-agnostic |
+| `kroshu/kuka_robot_descriptions` | `master` | URDF/moveit-configs/mock hardware plugin distro-agnostic, no per-ROS2-version branch exists |
+| `kroshu/kuka-external-control-sdk` | `master` | non-ROS SDK wrapped for colcon also distro-agnostic |
 | `kroshu/examples` | `master` (= Jazzy) | `moveit_example` itself |
 
 `colcon build --packages-up-to moveit_example` keeps the build scoped to what the iiQKA driver actually
-needs — `kuka_drivers` also contains RSI/FRI/KSS drivers for KUKA's other (industrial/LBR iiwa) product
-lines that aren't relevant here and would pull in their own dependencies otherwise.
+needs and nothing else in the repos.
 
-## Build
+## Build Kuka example
 
 ```bash
 cd part5/kuka
@@ -127,26 +85,19 @@ podman build -t quay.io/luferrar/part5:kuka-moveit-example -f Containerfile.kuka
 podman build -t quay.io/luferrar/part5:kuka-moveit2 -f Containerfile.kuka-moveit2 .
 ```
 
-## Run
+## Run Kuka example
 
-Same X11/GPU passthrough launcher as `rviz-tests` for either image — substitute
-`quay.io/luferrar/part5:kuka-moveit2` for the CentOS tag throughout this section and the next to use the
-Ubuntu build instead:
+Same X11/GPU passthrough launcher as `rviz-tests` for either image:  
 
 ```bash
 cd ../rviz-tests
 ./run-rviz-test.sh quay.io/luferrar/part5:kuka-moveit-example
 ```
 
-This brings up the mock driver, `ros2_control` controllers, `move_group`, and RViz together
-(`moveit_planning_fake_hardware.launch.py`, see the Containerfile for why this entry point is used
-instead of `moveit_example`'s own launch file, which doesn't wire up mock mode on its own).
+This brings up the mock driver, `ros2_control` controllers, `move_group`, and RViz together.  
 
 To actually exercise motion planning through the stack, run one of `moveit_example`'s own planning nodes
-against the already-running container — **not** a second `run-rviz-test.sh` invocation. `run-rviz-test.sh`
-doesn't set `--network host`, so podman gives each `run` its own isolated network namespace; two separate
-invocations can never discover each other over ROS2 DDS regardless of what command the second one runs.
-Instead, `exec` into the *same* container terminal 1 started (no `--name` is set, so grab its ID first):
+against the already-running container:  
 
 ```bash
 CID=$(podman ps --filter "ancestor=quay.io/luferrar/part5:kuka-moveit-example" --format "{{.ID}}")
@@ -157,8 +108,7 @@ podman exec -it "$CID" bash -c '
   ros2 run moveit_example moveit_basic_planners_example'
 ```
 
-For the MoveIt2/Ubuntu image, the `exec` activation is simpler — no `micromamba`, just a plain `source`
-(matching `entrypoint-moveit2.sh`, which `podman exec` bypasses the same way):
+For the MoveIt2/Ubuntu image, the `exec` activation is a plain `source`:
 
 ```bash
 CID=$(podman ps --filter "ancestor=quay.io/luferrar/part5:kuka-moveit2" --format "{{.ID}}")
@@ -169,7 +119,10 @@ podman exec -it "$CID" bash -c '
 ```
 
 Other available example nodes (same package, swap the executable name): `moveit_collision_avoidance_example`,
-`moveit_constrained_planning_example`, `moveit_depalletizing_example`.
+`moveit_constrained_planning_example`, `moveit_depalletizing_example`.  
+
+Here is the video recording of the test with the `kuka-moveit2` image:  
+[![Kuka drivers](http://img.youtube.com/vi/fsdSST87yjI/0.jpg)](http://www.youtube.com/watch?v=fsdSST87yjI "Kuka drivers test")  
 
 ## Testing RT Performance
 
@@ -268,7 +221,6 @@ here the way `../rt/README.md` and `../rviz-tests/README.md` have for their own 
 - **entrypoint.sh**: activates the `ros_env` micromamba environment, sources the `kuka_ws` workspace
   overlay, then execs the given command
 - **Containerfile.kuka-moveit2**: layered directly on `moveit/moveit2:jazzy-release` (see "Why also
-  MoveIt2/Ubuntu" above); builds the same four KUKA source repos in `/opt/kuka_ws`, no conda/micromamba
-  layer at all
+  MoveIt2/Ubuntu" above); builds the same four KUKA source repos in `/opt/kuka_ws`  
 - **entrypoint-moveit2.sh**: sources `/opt/ros/jazzy/setup.bash` and the `kuka_ws` workspace overlay,
-  then execs the given command — no `micromamba activate` step, unlike `entrypoint.sh`
+  then execs the given command

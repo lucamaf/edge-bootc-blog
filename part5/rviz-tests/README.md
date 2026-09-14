@@ -272,7 +272,7 @@ parameters that matter).
 - **thermal/power throttling**: `nvidia-smi -q` showed "SW Power Cap: Not Active", "HW Slowdown: Not Active", 56°C against a 100°C threshold, nothing throttling)
 
 
-## Conclusions
+## Conclusions & results
 
 Four ROS2 distribution mechanisms were built and tested:  
 1. RoboStack/conda-forge on RHEL10 (`rviz-humble`)

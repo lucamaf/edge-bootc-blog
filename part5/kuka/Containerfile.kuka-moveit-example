@@ -4,8 +4,7 @@
 # driver + MoveIt 2) against this project's RHEL10 RT-kernel setup, without
 # real KUKA hardware attached, using KUKA's own purpose-built mock hardware plugin
 # (kuka_mock_hardware_interface, selected via mode:=mock in the URDF) in
-# place of the real iiQKA network driver. This validates the ROS2/build/RT
-# side of the stack, not real robot communication (RSI/EAC network I/O).
+# place of the real iiQKA network driver. 
 #
 # Four source repos, all pointed at the ROS2-Jazzy-tracking side of each -
 # none of the KUKA repos publish conda/RPM packages, so everything
