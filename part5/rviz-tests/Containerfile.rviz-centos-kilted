@@ -18,7 +18,6 @@ RUN ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastruc
 
 # X11/XWayland + GL/EGL dispatch libraries for Qt's xcb platform plugin and
 # GPU rendering.
-#
 # qt5-qtwayland: unlike RoboStack/conda-forge's Qt build this RPM exists on CentOS Stream 9's own AppStream repo.
 RUN dnf install -y \
     mesa-libGL \

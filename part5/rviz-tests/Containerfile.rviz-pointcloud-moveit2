@@ -2,32 +2,14 @@
 #
 # gpu_pointcloud_test (../gpu_pointcloud_test/), layered directly on
 # MoveIt2's own official Docker image (moveit/moveit2:jazzy-release,
-# https://hub.docker.com/r/moveit/moveit2) instead of assembling ROS2/
-# rviz2 ourselves - a 4th ROS2-distribution mechanism for this directory
-# (RoboStack/Humble, official-RPM/Kilted, Fedora-Copr/Lyrical are the
-# other three), and the first one here on an Ubuntu-family base rather
-# than a RHEL-family one (UBI10/CentOS Stream/Fedora). Still runs fine via
-# podman on the RHEL10 host regardless - containers aren't tied to the
-# host's OS version, same reasoning as the Kilted image's CentOS Stream
-# base.
+# https://hub.docker.com/r/moveit/moveit2)
 #
 # moveit/moveit2:jazzy-release is `FROM ros:jazzy-ros-base` (Ubuntu 24.04
-# Noble) plus `apt-get install ros-jazzy-moveit-*`, confirmed directly
-# against upstream's own .docker/release/Dockerfile - moveit-ros-
-# visualization pulls in rviz2 transitively, so no separate rviz2 install
-# needed here. Jazzy (not Humble, to match this) - none of the other three
-# variants here is Jazzy either, but it's this project's now-proven
-# from-source-compatible ROS2 distro (see ../kuka/README.md), and it's
-# simply what upstream publishes this image as.
+# Noble) plus `apt-get install ros-jazzy-moveit-*`, moveit-ros-
+# visualization pulls in rviz2 transitively. Jazzy ROS release.
 FROM docker.io/moveit/moveit2:jazzy-release
 
-# Same X11/GPU passthrough rationale as the rest of this directory (see
-# Containerfile.rviz-humble) - Debian/Ubuntu package names instead of
-# Fedora/RHEL ones. ros-jazzy-ros2launch: confirmed present as a normal
-# Debian package for Jazzy (unlike the Fedora Lyrical Copr's gap - see
-# Containerfile.rviz-fedora-lyrical), so this image can use plain
-# `ros2 launch` in its CMD rather than needing a run-gpu-pointcloud-*.sh
-# workaround script the way the Lyrical pointcloud variant does.
+# Same X11/GPU passthrough rationale as the other images.
 RUN apt-get update -q && apt-get install -y --no-install-recommends \
     libgl1 \
     libegl1 \
@@ -61,8 +43,7 @@ RUN apt-get update -q && apt-get install -y --no-install-recommends \
 # fresh over it instead of attempting that uninstall, safe here since
 # nothing else in this container depends on the apt-provided numpy.
 # NVIDIA's unified cuda-toolkit metapackage rather than trusting
-# cupy-cuda12x's own [ctk] extra - see the other pointcloud variants'
-# Containerfiles for why.
+# cupy-cuda12x's own [ctk] extra.
 RUN pip3 install --no-cache-dir --break-system-packages --ignore-installed --upgrade \
     cupy-cuda12x \
     "cuda-toolkit[cublas,cudart,cufft,curand,cusolver,cusparse,nvrtc]==12.*" \
@@ -70,14 +51,12 @@ RUN pip3 install --no-cache-dir --break-system-packages --ignore-installed --upg
 
 COPY gpu_pointcloud_test /opt/gpu_pointcloud_ws/src/gpu_pointcloud_test
 
-# bash -c, not a plain `.`/`source`: Containerfile RUN steps execute via
+# bash -c : Containerfile RUN steps execute via
 # /bin/sh, which on this Ubuntu-based image is dash, not bash - and
 # setup.bash's own content uses bash-specific syntax (${BASH_SOURCE[0]}
 # array-indexing), which dash can't parse even via the POSIX `.` command
 # ("Bad substitution"). Explicitly invoking bash here keeps using
-# setup.bash (`.sh` also exists and is dash-safe, but .bash is what every
-# other image in this directory sources, for consistency) rather than
-# switching sourced files just for this one step.
+# setup.bash.
 RUN bash -c '. /opt/ros/jazzy/setup.bash && \
     cd /opt/gpu_pointcloud_ws && \
     colcon build --packages-select gpu_pointcloud_test'
@@ -98,7 +77,7 @@ WORKDIR /opt
 
 ENTRYPOINT ["/usr/local/bin/entrypoint-pointcloud-moveit2.sh"]
 
-# Same tuned parameters as the other pointcloud variants' default - see
+# Same default parameters as the other pointcloud variants' default - see
 # ../rviz-tests/README.md's "Test Results" sections for the P620-specific
 # reasoning/numbers behind these values.
 CMD ["ros2", "launch", "gpu_pointcloud_test", "gpu_pointcloud.launch.py", \
