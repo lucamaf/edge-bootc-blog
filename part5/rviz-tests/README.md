@@ -4,9 +4,7 @@ A standalone application container for testing GPU-accelerated ROS2 visualizatio
 
 ## Centos based alternative (Kilted)
 
-A RPM-based alternative — `Containerfile.rviz-centos-kilted`
-(`quay.io/luferrar/part5:rviz-kilted`) and its own GPU load test variant, `Containerfile.rviz-pointcloud-kilted`
-(`quay.io/luferrar/part5:rviz-pointcloud-kilted`) using ROS2's official RPM channel.
+A RPM-based alternative `Containerfile.rviz-centos-kilted` (`quay.io/luferrar/part5:rviz-kilted`) and its own GPU load test variant, `Containerfile.rviz-pointcloud-kilted` (`quay.io/luferrar/part5:rviz-pointcloud-kilted`) using ROS2's official RPM channel.  
 
 The image uses **CentOS Stream 9**, the official install guide's `crb
 enable` step is written for CentOS Stream/RHEL-proper's CodeReady Builder repo naming.
@@ -43,7 +41,7 @@ This image is based on `ubi10` and with RoboStack it sidesteps the RPMs problem 
 Wayland passthrough was tried, but RoboStack/conda-forge's Qt build for `ros-humble-desktop` has no `wayland` platform plugin at all (`eglfs, minimal, minimalegl, offscreen, vnc, webgl, xcb`). 
 
 `xcb` connects through **XWayland** instead.  
-*RHEL10 removes the standalone Xorg server, but keeps XWayland specifically for X11 app compatibility — GNOME/Mutter starts it automatically the moment an X11 client tries to connect. So this still works on a normal RHEL10 Wayland desktop; it just goes through the compatibility layer rather than talking to Wayland natively.*
+*RHEL10 removes the standalone Xorg server, but keeps XWayland specifically for X11 app compatibility. GNOME/Mutter starts it automatically the moment an X11 client tries to connect. So this still works on a normal RHEL10 Wayland desktop; it just goes through the compatibility layer rather than talking to Wayland natively.*
 
 ## RVIZ test applications
 
@@ -51,7 +49,7 @@ Wayland passthrough was tried, but RoboStack/conda-forge's Qt build for `ros-hum
 
 - RHEL10 host with the NVIDIA driver working **and** `nvidia-container-toolkit` installed with a generated CDI spec, the driver alone is not enough (see `nvidia-cdi-setup.md`).  
 - the container application does **not** install any NVIDIA driver; it's injected at runtime via `--device nvidia.com/gpu=all`, which has nothing to resolve against without that setup.  
-- A desktop session running on the host with `$DISPLAY` set (check with `echo $DISPLAY` — this is
+- A desktop session running on the host with `$DISPLAY` set (check with `echo $DISPLAY`, this is
   XWayland's socket), present on a normal GNOME Wayland session, not a separate X11 session you need to
   set up.
 - `podman` version to support CDI devices (`--device vendor.com/device=...`).
@@ -74,7 +72,7 @@ ls -la /dev/nvidia* /dev/dri/render*
 groups
 ```
 `--device nvidia.com/gpu=all` (CDI) bind-mounts these nodes into the container with their *host*
-permissions unchanged — it doesn't grant access on its own. If they're group-owned by `render`/`video`
+permissions unchanged, it doesn't grant access on its own. If they're group-owned by `render`/`video`
 and your user isn't in that group, `run-rviz-test.sh`'s non-root `--user` will get permission denied
 opening them, not a helpful error. Fix is group membership:
 ```bash
@@ -110,7 +108,7 @@ rendering. Check both:
 # Inside the container
 ./run-rviz-test.sh quay.io/luferrar/part5:rviz-humble -- check-gpu.sh
 ```
-Look for `NVIDIA`/`Quadro P620` in the renderer string — `llvmpipe` means software rendering.
+Look for `NVIDIA`/`Quadro P620` in the renderer string, `llvmpipe` means software rendering.
 
 ```bash
 # On the HOST, while rviz2 is running in the container
@@ -134,7 +132,7 @@ instead of one of this directory's own:
 - related to rviz-humble but built standalone from scratch (`Containerfile.rviz-pointcloud`): as `gpu_pointcloud_test` only needs `ros-humble-ros-base` + `rviz2`, not the full `ros-humble-desktop` metapackage
 - rviz centos kilted variation (`Containerfile.rviz-pointcloud-kilted`)
 - rviz fedora lyrical variation (`Containerfile.rviz-pointcloud-lyrical`)
-- rviz moveit2 variation (`Containerfile.rviz-pointcloud-moveit2`) — layered directly on
+- rviz moveit2 variation (`Containerfile.rviz-pointcloud-moveit2`), layered directly on
   [`moveit/moveit2:jazzy-release`](https://hub.docker.com/r/moveit/moveit2) (Ubuntu 24.04/Jazzy) instead
   of one of this directory's own base images
 
@@ -198,7 +196,7 @@ Steady-state (excluding the first frame, which shows the same one-time JIT-compi
 
 Pointcloud test application with the same tuned parameters as above (`num_points=200000 gpu_iterations=80 neighbor_sample=800`) running on `Containerfile.rviz-pointcloud-kilted`. 
 
-GPU acceleration is working: `Compute backend: cupy (GPU)` at startup, a first-frame JIT-compile warmup (2174ms), then a steady state around **176ms/frame** — about 27% slower per-frame compute than the Rbotostack image's 139ms at the identical parameters.
+GPU acceleration is working: `Compute backend: cupy (GPU)` at startup, a first-frame JIT-compile warmup (2174ms), then a steady state around **176ms/frame** about 27% slower per-frame compute than the Rbotostack image's 139ms at the identical parameters.
 
 It crashed after about 4.5 minutes (~1500 frames). Same fault signature as before:  
 
@@ -217,7 +215,7 @@ around that time. A contained fault, not a GPU hang.
 
 Same tuned parameters (`num_points=200000 gpu_iterations=80 neighbor_sample=800`), on `Containerfile.rviz-pointcloud-lyrical`, launched via `run-gpu-pointcloud-lyrical.sh` rather than `ros2launch`, since this Copr has no `ros2launch` package.  
 
-GPU acceleration is working: `cupy (GPU)` backend at startup, a first-frame JIT-compile warmup (2352ms), then a clean steady state — **avg 136.8ms/frame** over the 53 frames it managed before crashing.
+GPU acceleration is working: `cupy (GPU)` backend at startup, a first-frame JIT-compile warmup (2352ms), then a clean steady state **avg 136.8ms/frame** over the 53 frames it managed before crashing.
 
 Identical fault signature to both earlier crashes:
 
@@ -267,7 +265,7 @@ What actually distinguishes the crashing runs from this clean one: `num_points` 
 `gpu_iterations`/`neighbor_sample` (to isolate whether it's `num_points` specifically or the other two
 parameters that matter).
 
-**Root-cause-analysis of crashes**:
+## Root-cause-analysis of crashes
 
 - **CUDA toolkit version**: identical CUDA Build/NVRTC version (12090 / 12.9) across Robostack, Centos/Kilted, Fedora/Lyrical, Moveit2 image. Robostack, Fedora/Lyrical and Moveit2 images even share the exact same CuPy version (14.2.0).
 - **Host desktop/GPU contention**: checked `journalctl` in a window around all three Xid faults for `gnome-shell`, `gnome-remote-desktop`, `Xwayland`, or `mutter` activity that might indicate the desktop compositor competing for the P620's 2GB VRAM at the moment of each fault and **nothing** showed up in any of the three windows.
@@ -345,29 +343,29 @@ least Containerfile complexity of the four (no EPEL/CRB wrangling, no from-sourc
 - **Containerfile.rviz-humble**: UBI10 base + RoboStack (`ros-humble-desktop`, includes `rviz2`) via micromamba
 - **entrypoint-humble.sh**: activates the `ros_env` micromamba environment, then execs the given command
 - **check-gpu.sh**: prints the EGL/GLX renderer string to confirm NVIDIA vs. software rendering
-- **run-rviz-test.sh**: host-side launcher — mounts the X11/XWayland socket, passes the GPU via CDI,
+- **run-rviz-test.sh**: host-side launcher, mounts the X11/XWayland socket, passes the GPU via CDI,
   runs as the host's own UID (the image has no fixed user; `/etc/passwd` is bind-mounted read-only so
   the arbitrary UID still resolves to a name)
-- **Containerfile.rviz-pointcloud**: standalone (`ros-base` + `rviz2`) image for [`../gpu_pointcloud_test/`](../gpu_pointcloud_test/) — see [above](#gpu-load-test-gpu_pointcloud_test)
+- **Containerfile.rviz-pointcloud**: standalone (`ros-base` + `rviz2`) image for [`../gpu_pointcloud_test/`](../gpu_pointcloud_test/), see [above](#gpu-load-test-gpu_pointcloud_test)
 - **entrypoint-pointcloud.sh**: same activation pattern as `entrypoint-humble.sh`, plus overlaying the
   `gpu_pointcloud_test` colcon workspace
-- **Containerfile.rviz-centos-kilted**: the RPM-based alternative (`rviz-kilted`) — see the "Centos
+- **Containerfile.rviz-centos-kilted**: the RPM-based alternative (`rviz-kilted`), see the "Centos
   based alternative (Kilted)" section above
 - **entrypoint-kilted.sh**: sources `/opt/ros/kilted/setup.bash`, then execs the given command
 - **Containerfile.rviz-pointcloud-kilted**: `gpu_pointcloud_test` layered on `rviz-kilted` instead of the
-  conda-based image — see the "Test Results Kilted Centos-Based Image" section above
+  conda-based image, see the "Test Results Kilted Centos-Based Image" section above
 - **entrypoint-pointcloud-kilted.sh**: same pattern as `entrypoint-kilted.sh`, plus overlaying the
   `gpu_pointcloud_test` colcon workspace and the `nvidia-*` wheel library-path discovery it needs
-- **Containerfile.rviz-fedora-lyrical**: the Fedora + official Copr RPMs alternative (`rviz-lyrical`) — see
+- **Containerfile.rviz-fedora-lyrical**: the Fedora + official Copr RPMs alternative (`rviz-lyrical`), see
   the "Fedora based alternative (Lyrical & official Copr RPMs)" section above
 - **entrypoint-lyrical.sh**: sources `/opt/ros/lyrical/setup.bash`, then execs the given command
-- **Containerfile.rviz-pointcloud-lyrical**: `gpu_pointcloud_test` layered on `rviz-lyrical` — see the
+- **Containerfile.rviz-pointcloud-lyrical**: `gpu_pointcloud_test` layered on `rviz-lyrical`, see the
   "Test Results Lyrical Fedora-Based Image" section above
 - **entrypoint-pointcloud-lyrical.sh**: same pattern as `entrypoint-lyrical.sh`, plus overlaying the
   `gpu_pointcloud_test` colcon workspace and the `nvidia-*` wheel library-path discovery it needs
 - **run-gpu-pointcloud-lyrical.sh**: drives the node + `rviz2` directly via `ros2 run`, since this
   Copr has no `ros2launch` package to provide the `ros2 launch` verb `Containerfile.rviz-pointcloud`/
-  `Containerfile.rviz-pointcloud-kilted` rely on — see the Containerfile's own comments
+  `Containerfile.rviz-pointcloud-kilted` rely on, see the Containerfile's own comments
 - **Containerfile.rviz-pointcloud-moveit2**: `gpu_pointcloud_test` layered directly on
   [`moveit/moveit2:jazzy-release`](https://hub.docker.com/r/moveit/moveit2); see the Containerfile's own
   comments for the Ubuntu/Debian-specific quirks that come with that
