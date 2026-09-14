@@ -1,0 +1,132 @@
+# tagged as quay.io/luferrar/part5:kuka-moveit2
+#
+# Same test as Containerfile.kuka-moveit-example (KUKA iiQKA driver +
+# MoveIt 2 against this project's RHEL10 setup, mock hardware, no real
+# robot - see that Containerfile's header comment for the full "what this
+# validates" rationale, unchanged here), but layered directly on MoveIt2's
+# own official Docker image (moveit/moveit2:jazzy-release, Ubuntu 24.04)
+# instead of building CentOS Stream 10 + RoboStack from scratch - same
+# approach as ../rviz-tests/Containerfile.rviz-pointcloud-moveit2, applied
+# to the KUKA driver build this time.
+#
+# This turns out meaningfully SIMPLER than the CentOS Stream 10 build, for
+# reasons specific to that build's own history:
+#   - No CRB/protobuf-version wrangling: Containerfile.kuka-moveit-example
+#     needed `subscription-manager`/`crb enable` gymnastics to reach
+#     protobuf-devel/protobuf-compiler on RHEL10 at all (see that
+#     Containerfile's own comments for the full saga). Ubuntu 24.04 ships
+#     libgrpc++-dev/protobuf-compiler-grpc/libtinyxml2-dev/libcap-dev as
+#     normal, always-available apt packages - confirmed directly against
+#     the real image before writing this, not assumed.
+#   - grpc_cpp_plugin needs no symlink: kuka_external_control_sdk's
+#     CMakeLists.txt hardcodes PLUGIN="protoc-gen-grpc=/usr/bin/
+#     grpc_cpp_plugin" (not configurable) - Debian's protobuf-compiler-grpc
+#     package installs it at exactly that path, confirmed directly.
+#   - No LIBRARY_PATH/CMAKE_INSTALL_RPATH workaround needed:
+#     Containerfile.kuka-moveit-example needed this because it used the
+#     SYSTEM compiler against a conda-forge-built ROS2 (RoboStack), two
+#     separately-built toolchains that don't share a library search path
+#     by default. There's no conda environment here at all - ROS2, the
+#     compiler, and everything this Containerfile builds are all part of
+#     the same apt-based system, so there's nothing to bridge.
+#   - Most of the needed ROS2 packages are already installed:
+#     moveit/moveit2:jazzy-release's own `ros-jazzy-moveit-*` install
+#     already transitively pulls in controller-manager, moveit-visual-
+#     tools, ros2launch, and joint-state-publisher-gui - confirmed by
+#     checking `dpkg -l` against the real image. Only ros2-control/
+#     ros2-controllers/ros2-controllers-test-nodes needed adding.
+#
+# Everything else - the four source repos/branches, --packages-up-to
+# scoping, the mock-hardware-interface build-target gap, the RT testing
+# caveats - is identical to Containerfile.kuka-moveit-example; see that
+# file and ../README.md for the full reasoning, not repeated here.
+FROM docker.io/moveit/moveit2:jazzy-release
+
+# X11/GPU passthrough (same rationale as every other image in this
+# project - see ../rviz-tests/Containerfile.rviz-humble), Debian/Ubuntu
+# package names. Plus git/colcon/pip for the source build, and the
+# grpc/protobuf/openssl/tinyxml2/libcap dev packages
+# kuka_external_control_sdk needs (see header comment) - all confirmed
+# present in Ubuntu 24.04's own repos, no CRB/EPEL-equivalent wrangling.
+# ros2-control/ros2-controllers/ros2-controllers-test-nodes are the only
+# ROS2 packages actually missing from the base image (confirmed via
+# dpkg -l before adding this list) - everything else needed is already
+# installed.
+RUN apt-get update -q && apt-get install -y --no-install-recommends \
+    git \
+    libgl1 \
+    libegl1 \
+    libglvnd0 \
+    libglx0 \
+    libxkbcommon0 \
+    libxcb1 \
+    libx11-6 \
+    libxext6 \
+    libxrender1 \
+    libsm6 \
+    libice6 \
+    libfontconfig1 \
+    libdbus-1-3 \
+    mesa-utils \
+    python3-colcon-common-extensions \
+    python3-pip \
+    python3-setuptools \
+    libssl-dev \
+    libgrpc++-dev \
+    protobuf-compiler-grpc \
+    libtinyxml2-dev \
+    libcap-dev \
+    ros-jazzy-ros2-control \
+    ros-jazzy-ros2-controllers \
+    ros-jazzy-ros2-controllers-test-nodes \
+    && rm -rf /var/lib/apt/lists/*
+
+# bash -c, not a plain `.`/`source`: same dash-vs-bash issue as
+# ../rviz-tests/Containerfile.rviz-pointcloud-moveit2 - /bin/sh on this
+# Ubuntu base is dash, and setup.bash's own content uses bash-specific
+# syntax (${BASH_SOURCE[0]} array-indexing) that dash can't parse even via
+# the POSIX `.` command.
+#
+# --packages-up-to moveit_example kuka_lbr_iisy_moveit_config
+# kuka_mock_hardware_interface: same reasoning as
+# Containerfile.kuka-moveit-example - neither of the latter two is a
+# package.xml exec_depend of anything actually being built (both are
+# resolved dynamically at runtime, one via a Python string in a launch
+# file, one via pluginlib's ament-index plugin registry), so colcon's
+# static dependency graph can't see either without naming them explicitly.
+RUN bash -c '. /opt/ros/jazzy/setup.bash && \
+    mkdir -p /opt/kuka_ws/src && cd /opt/kuka_ws/src && \
+    git clone --branch master --depth 1 https://github.com/kroshu/kuka_drivers.git && \
+    git clone --branch master --depth 1 https://github.com/kroshu/kuka_robot_descriptions.git && \
+    git clone --branch master --depth 1 https://github.com/kroshu/kuka-external-control-sdk.git && \
+    git clone --branch master --depth 1 https://github.com/kroshu/examples.git kuka_examples && \
+    cd /opt/kuka_ws && \
+    colcon build --packages-up-to moveit_example kuka_lbr_iisy_moveit_config \
+      kuka_mock_hardware_interface \
+      --cmake-args -DCMAKE_BUILD_TYPE=Release'
+
+RUN chmod -R a+rX /opt/kuka_ws
+
+COPY entrypoint-moveit2.sh /usr/local/bin/entrypoint-kuka-moveit2.sh
+RUN chmod +x /usr/local/bin/entrypoint-kuka-moveit2.sh
+
+# Writable-by-anyone home so an arbitrary --user UID (see
+# ../rviz-tests/run-rviz-test.sh) has somewhere to put Qt/ROS config files
+# - the base image otherwise defaults to HOME=/root, unwritable by a
+# non-root UID.
+ENV HOME=/tmp
+ENV QT_QPA_PLATFORM=xcb
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+ENV NVIDIA_VISIBLE_DEVICES=all
+
+WORKDIR /opt
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-kuka-moveit2.sh"]
+
+# Same mock-hardware convenience default as Containerfile.kuka-moveit-example
+# - see that Containerfile's own CMD comment and ../README.md's "Testing RT
+# Performance" section for why this entry point (not moveit_example's own
+# launch file) is the default, and how to exercise the RT-tuned path
+# instead.
+CMD ["ros2", "launch", "kuka_lbr_iisy_moveit_config", \
+     "moveit_planning_fake_hardware.launch.py", "robot_model:=lbr_iisy3_r760"]
