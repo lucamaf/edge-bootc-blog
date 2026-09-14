@@ -294,7 +294,7 @@ All four get GPU-accelerated `rviz2` rendering and, via `gpu_pointcloud_test`, G
 | `rviz-pointcloud` | conda-forge/RoboStack | 13.5GB | 20000/8/80 (lightest) | 5.49ms | Clean zero faults |
 
 Here is the video recording of the test with the `rviz-pointcloud-moveit2` image:  
-[![Rviz2](http://img.youtube.com/vi/DyzK77TJg8U/0.jpg)](http://www.youtube.com/watch?v=DyzK77TJg8U "Moveit2 test")
+[![Rviz2](http://img.youtube.com/vi/0jiYdqIysfw/0.jpg)](http://www.youtube.com/watch?v=0jiYdqIysfw "Moveit2 test")
 
 <!--
 The non-conda images are the better fit on paper — smaller, no conda/micromamba layer, and each faster
