@@ -48,6 +48,15 @@ FROM docker.io/moveit/moveit2:jazzy-release
 # grpc/protobuf/openssl/tinyxml2/libcap dev packages
 # kuka_external_control_sdk needs (see header comment) - all confirmed
 # present in Ubuntu 24.04's own repos, no CRB/EPEL-equivalent wrangling.
+# libprotobuf-dev explicitly, not left to libgrpc++-dev's own transitive
+# pull: that only brings in libprotobuf32t64 (the runtime .so.32), not the
+# unversioned libprotobuf.so symlink/headers/protobuf.pc that
+# kuka_external_control_sdk's vendored, find_library()-based
+# FindProtobuf.cmake module actually needs - confirmed directly (`find /
+# -iname libprotobuf*` inside the real image) before adding this, same
+# "CMake Error: Protobuf_LIBRARY ... NOTFOUND" class of gap the CentOS
+# build hit for a different reason (there it was a missing CRB-gated RPM
+# entirely; here the RPM/deb exists, just isn't pulled in by default).
 # ros2-control/ros2-controllers/ros2-controllers-test-nodes are the only
 # ROS2 packages actually missing from the base image (confirmed via
 # dpkg -l before adding this list) - everything else needed is already
@@ -74,6 +83,7 @@ RUN apt-get update -q && apt-get install -y --no-install-recommends \
     libssl-dev \
     libgrpc++-dev \
     protobuf-compiler-grpc \
+    libprotobuf-dev \
     libtinyxml2-dev \
     libcap-dev \
     ros-jazzy-ros2-control \
